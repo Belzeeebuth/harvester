@@ -39,6 +39,7 @@ import * as postcardModule from '../src/commands/postcard';
 import * as profileModule from '../src/commands/profile';
 import * as progressionModule from '../src/commands/progression';
 import * as serverModule from '../src/commands/server';
+import * as serverkitModule from '../src/commands/serverkit';
 import * as socialModule from '../src/commands/social';
 import * as startModule from '../src/commands/start';
 import * as tradeModule from '../src/commands/trade';
@@ -413,7 +414,7 @@ describe('commandes Discord', () => {
     accountModule, adminModule, alertsModule, almanacModule, animalsModule,
     collectionModule, contextMenusModule, craftModule, economyModule, farmModule,
     historyModule, languageModule, postcardModule, profileModule, progressionModule,
-    serverModule, socialModule, startModule, tradeModule, worldModule,
+    serverModule, serverkitModule, socialModule, startModule, tradeModule, worldModule,
   ] as Array<Record<string, unknown>>;
 
   const payloads = modules.flatMap((module) => [

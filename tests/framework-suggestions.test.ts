@@ -35,7 +35,10 @@ beforeAll(async () => {
     if (module.handler) buttonHandlers.push(module.handler);
     if (Array.isArray(module.handlers)) buttonHandlers.push(...module.handlers);
   }
-});
+  // Délai explicite : ce crochet importe TOUT le graphe des services (7 à 9 s
+  // sur un hôte chargé), soit à un souffle des 10 s par défaut de Vitest — et
+  // le Dockerfile lance cette suite pendant le build de l'image.
+}, 60_000);
 
 /** Même règle que `findHandler` : namespace exact, action exacte ou `*`. */
 function handlerFor(namespace: string, action: string): ComponentHandler | undefined {

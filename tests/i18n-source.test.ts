@@ -28,6 +28,7 @@ const UI_DIRS = [
   'src/jobs',
   'src/render',
   'src/utils',
+  'src/serverkit',
 ];
 
 /** Accents utilisés en français mais absents de l'anglais. */

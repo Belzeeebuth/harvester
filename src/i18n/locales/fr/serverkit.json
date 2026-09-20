@@ -1,0 +1,291 @@
+{
+  "$comment": "Kit serveur (/serverkit) : libellés du plan (rôles, catégories, salons, étiquettes), panneaux et interface de la commande. Fragment fusionné avec fr.json ; même arborescence que en/serverkit.json. Les NOMS de salons textuels ne doivent contenir ni tiret ni ponctuation : ils sont soudés et stylisés par src/serverkit/naming.ts.",
+  "serverkit": {
+    "roles": {
+      "sep_staff": "Équipe",
+      "founder": "Propriétaire",
+      "admin": "Intendance",
+      "moderator": "Garde champêtre",
+      "support": "Entraide",
+      "bots": "Automates",
+      "sep_badges": "Distinctions",
+      "patron": "Mécène",
+      "artisan": "Artisan",
+      "bughunter": "Chasse aux bugs",
+      "sep_ranks": "Villageois",
+      "legend": "Légende de Greenvale",
+      "grandfarmer": "Grand domaine",
+      "grower": "Belle récolte",
+      "sprout": "Jeune pousse",
+      "sep_notify": "Notifications",
+      "notify_news": "Annonces",
+      "notify_updates": "Nouveautés",
+      "notify_events": "Évènements",
+      "notify_giveaways": "Cadeaux",
+      "notify_polls": "Sondages",
+      "lang_fr": "Français",
+      "lang_en": "English"
+    },
+    "categories": {
+      "welcome": "Accueil",
+      "square": "La Place",
+      "farm": "La Ferme",
+      "festival": "La Fête",
+      "workshop": "L'Atelier",
+      "hayloft": "La Grange",
+      "council": "Le Conseil"
+    },
+    "channels": {
+      "welcome": { "name": "bienvenue", "topic": "🌾 Les portes de Greenvale ・ commencez ici." },
+      "rules": { "name": "règlement", "topic": "📜 Les règles du village ・ à lire avant de participer." },
+      "news": { "name": "annonces", "topic": "📣 Les annonces officielles de Harvester." },
+      "updates": { "name": "nouveautés", "topic": "🛠️ Notes de version ・ ce qui change dans le jeu, mise à jour après mise à jour." },
+      "roles": { "name": "rôles", "topic": "🎭 Choisissez vos notifications et votre langue." },
+      "guide": { "name": "guide", "topic": "🧭 L'essentiel pour réussir vos premières récoltes." },
+      "faq": { "name": "faq", "topic": "❓ Les réponses aux questions les plus fréquentes." },
+      "general": { "name": "discussion", "topic": "💬 La place du village ・ on y parle de tout, dans le respect de chacun." },
+      "intros": { "name": "présentations", "topic": "🙋 Dites bonjour et racontez votre ferme." },
+      "international": { "name": "english", "topic": "🌍 English speaking corner ・ everyone is welcome." },
+      "showcase": { "name": "fermes", "topic": "📸 Montrez vos fermes, vos cartes postales et vos plus belles récoltes." },
+      "creations": { "name": "créations", "topic": "🎨 Dessins, montages et créations autour de Harvester." },
+      "offtopic": { "name": "détente", "topic": "🎲 Tout ce qui ne parle pas de ferme." },
+      "fields": { "name": "champs", "topic": "🌱 Jouez ici ・ /farm /plant /water /harvest" },
+      "barn": { "name": "étable", "topic": "🐄 Élevage ・ /animals /feed /collect /breed /pet" },
+      "pond": { "name": "étang", "topic": "🎣 Pêche ・ /fish" },
+      "mine": { "name": "mine", "topic": "⛏️ Mine et artisanat ・ /mine /craft /recipes /production" },
+      "market": { "name": "marché", "topic": "🪙 Cours du marché, échanges et enchères ・ /market /trade /auction /alert" },
+      "coops": { "name": "coopératives", "topic": "🤝 Recrutez pour votre coopérative ou trouvez en une ・ /coop" },
+      "leaderboards": { "name": "classements", "topic": "🏆 Comparez vos fermes ・ /leaderboard /profile /stats" },
+      "reminders": { "name": "rappels", "topic": "🔔 Rappels groupés des fermes du village ・ à brancher avec /server reminders" },
+      "events": { "name": "évènements", "topic": "🎪 Saisons, fêtes et évènements de Greenvale ・ /event /season" },
+      "giveaways": { "name": "cadeaux", "topic": "🎁 Distributions de cadeaux organisées par l'équipe." },
+      "polls": { "name": "sondages", "topic": "📊 La communauté vote sur la suite du jeu." },
+      "contests": { "name": "concours", "topic": "🏅 Concours de la communauté ・ les règles sont épinglées à chaque édition." },
+      "help": { "name": "aide", "topic": "🆘 Une question sur le jeu ? Ouvrez un fil : un sujet par fil, avec la commande utilisée et ce que vous attendiez." },
+      "bugs": { "name": "bugs", "topic": "🐞 Signalez un bug : la commande utilisée, ce que vous attendiez, ce qui s'est passé. Une capture aide beaucoup." },
+      "suggestions": { "name": "suggestions", "topic": "💡 Une idée par fil. Votez avec ⬆️ pour celles qui vous plaisent." },
+      "translations": { "name": "traductions", "topic": "🌐 Une tournure maladroite, une langue à ajouter ? C'est ici." },
+      "status": { "name": "statut", "topic": "📡 État du bot, maintenances et incidents." },
+      "v_campfire": { "name": "Feu de camp" },
+      "v_evening": { "name": "Veillée" },
+      "v_games": { "name": "Partie en cours" },
+      "v_music": { "name": "Musique" },
+      "v_stage": { "name": "Grande scène" },
+      "v_nap": { "name": "Sieste" },
+      "staff_chat": { "name": "équipe", "topic": "🗝️ Coordination de l'équipe." },
+      "staff_moderation": { "name": "modération", "topic": "📋 Décisions de modération et suivi des sanctions." },
+      "staff_reports": { "name": "signalements", "topic": "🚨 Signalements à traiter." },
+      "staff_logs": { "name": "journal", "topic": "🧾 Journal de modération ・ réservé aux responsables." },
+      "staff_discord": { "name": "discord", "topic": "📥 Messages officiels de Discord pour les serveurs communautaires." },
+      "staff_tests": { "name": "essais", "topic": "🧪 Essayez une commande sans témoin." },
+      "v_council": { "name": "Conseil" }
+    },
+    "tags": {
+      "question": "Question",
+      "gameplay": "Jeu",
+      "account": "Compte",
+      "solved": "Résolu",
+      "fresh": "Nouveau",
+      "confirmed": "Confirmé",
+      "fixed": "Corrigé",
+      "duplicate": "Doublon",
+      "economy": "Économie",
+      "interface": "Interface",
+      "accepted": "Acceptée",
+      "declined": "Refusée"
+    },
+    "panels": {
+      "welcome": {
+        "title": "🌾 Bienvenue à Greenvale",
+        "body": "Posez vos valises, la terre est bonne ici.\n\nGreenvale est le village de **Harvester**, le jeu de ferme qui se joue directement dans Discord : on y sème, on y élève, on y commerce, et on y prend son temps.",
+        "invite_button": "Inviter Harvester",
+        "fields": {
+          "start": {
+            "name": "🌱 Par où commencer",
+            "value": "① Lisez {ch_rules}\n② Choisissez vos notifications dans {ch_roles}\n③ Tapez `/start` dans {ch_fields}, puis suivez {ch_guide}"
+          },
+          "where": {
+            "name": "🧭 Se repérer",
+            "value": "💬 {ch_general} pour discuter\n🆘 {ch_help} en cas de blocage\n🐞 {ch_bugs} et 💡 {ch_suggestions} pour améliorer le jeu\n📣 {ch_news} et {ch_updates} pour ne rien manquer"
+          },
+          "values": {
+            "name": "🤝 L'esprit du village",
+            "value": "On s'entraide, on partage ses récoltes et ses astuces, et on laisse la place aussi belle qu'on l'a trouvée."
+          }
+        }
+      },
+      "rules": {
+        "title": "📜 Règlement du village",
+        "body": "Quelques règles simples pour que Greenvale reste un endroit où il fait bon vivre. En restant ici, vous acceptez aussi les conditions d'utilisation et les règles de la communauté de Discord.",
+        "fields": {
+          "respect": {
+            "name": "🤝 Respect",
+            "value": "Aucune insulte, aucun harcèlement, aucune discrimination. On critique les idées, jamais les personnes."
+          },
+          "content": {
+            "name": "🧹 Contenu",
+            "value": "Pas de contenu choquant ou réservé aux adultes, pas de spam, pas de publicité sans accord de l'équipe. Chaque salon a son sujet, rappelé en haut du salon."
+          },
+          "fairplay": {
+            "name": "⚖️ Jeu loyal",
+            "value": "Pas de multicompte, pas d'automatisation, pas d'exploitation de bug. Un bug se signale dans {ch_bugs}, et {role_bughunter} remercie celles et ceux qui le font. La triche mène à une suspension de l'économie."
+          },
+          "staff": {
+            "name": "🛡️ Équipe",
+            "value": "{role_admin} et {role_moderator} ont le dernier mot. Un souci avec un membre ? Prévenez l'équipe en privé plutôt que de régler ça en public."
+          }
+        }
+      },
+      "roles": {
+        "title": "🎭 Choisissez vos rôles",
+        "body": "Cliquez sur un bouton pour prendre un rôle, recliquez pour le rendre. Vous ne recevrez de mention que pour ce que vous avez choisi.",
+        "fields": {
+          "notify": {
+            "name": "🔔 Notifications",
+            "value": "{role_notify_news} les annonces importantes\n{role_notify_updates} chaque mise à jour du jeu\n{role_notify_events} saisons et évènements\n{role_notify_giveaways} distributions de cadeaux\n{role_notify_polls} votes de la communauté"
+          },
+          "language": {
+            "name": "🌍 Langue",
+            "value": "{role_lang_fr} ou {role_lang_en} : indiquez dans quelle langue vous préférez qu'on vous réponde."
+          },
+          "ranks": {
+            "name": "🌻 Rangs du village",
+            "value": "{role_sprout}, {role_grower}, {role_grandfarmer} et {role_legend} sont remis par l'équipe selon votre parcours.\n{role_patron}, {role_artisan} et {role_bughunter} remercient celles et ceux qui font grandir Harvester."
+          }
+        }
+      },
+      "guide": {
+        "title": "🧭 Bien débuter sur Harvester",
+        "body": "Tout se joue avec des commandes slash, dans {ch_fields} et les salons voisins. Voici l'essentiel pour vos premières récoltes.",
+        "fields": {
+          "first": {
+            "name": "🌱 Première journée",
+            "value": "`/start` crée votre ferme\n`/tutorial` vous guide pas à pas\n`/plant`, puis `/water`, et enfin `/harvest`\n`/help` liste toutes les commandes"
+          },
+          "daily": {
+            "name": "☀️ Chaque jour",
+            "value": "`/daily` pour la récompense du jour\n`/quests` pour vos objectifs\n`/weather` et `/season` avant de semer\n`/almanac` pour ce qui arrive"
+          },
+          "economy": {
+            "name": "🪙 Commerce",
+            "value": "`/shop` et `/buy` pour vous équiper\n`/sell` et `/market` pour écouler vos récoltes\n`/bank` pour mettre de côté\n`/alert` vous prévient quand un prix bouge\nOn en parle dans {ch_market}"
+          },
+          "together": {
+            "name": "🤝 À plusieurs",
+            "value": "`/coop` pour rejoindre une coopérative, recrutement dans {ch_coops}\n`/visit` et `/assist` chez vos voisins\n`/trade`, `/gift` et `/auction` entre joueurs\n`/leaderboard` dans {ch_leaderboards}"
+          },
+          "more": {
+            "name": "✨ Pour aller plus loin",
+            "value": "`/animals`, `/fish`, `/mine` et `/craft` ouvrent de nouveaux métiers\n`/collection`, `/achievements` et `/pass` suivent votre progression\n`/postcard` envoie une carte de votre ferme\n`/lang` change la langue, `/settings` règle vos rappels"
+          }
+        }
+      },
+      "faq": {
+        "title": "❓ Questions fréquentes",
+        "body": "Les réponses aux questions qui reviennent le plus. La vôtre n'y est pas ? Ouvrez un fil dans {ch_help}.",
+        "fields": {
+          "free": {
+            "name": "🪙 Harvester est-il payant ?",
+            "value": "Non. Il n'existe aucune boutique en argent réel : les gemmes se gagnent uniquement en jouant, et la piste premium du passe se débloque avec `/vote`."
+          },
+          "reset": {
+            "name": "🗂️ Exporter ou supprimer mes données ?",
+            "value": "`/account export` vous envoie tout ce que Harvester conserve sur vous. `/account delete` efface définitivement votre ferme."
+          },
+          "reminders": {
+            "name": "🔔 Comment recevoir des rappels ?",
+            "value": "`/settings` règle vos rappels personnels. Sur votre propre serveur, `/server reminders` regroupe ceux de tout le monde dans un salon, comme ici dans {ch_reminders}."
+          },
+          "bug": {
+            "name": "🐞 J'ai trouvé un bug",
+            "value": "Ouvrez un fil dans {ch_bugs} avec la commande utilisée, ce que vous attendiez et ce qui s'est passé."
+          },
+          "idea": {
+            "name": "💡 J'ai une idée",
+            "value": "Proposez-la dans {ch_suggestions} : un fil par idée, et la communauté vote avec ⬆️."
+          }
+        }
+      },
+      "staff": {
+        "title": "🗝️ Mémo de l'équipe",
+        "body": "Ce qui se dit ici reste ici. Ce salon sert à se coordonner, {ch_staff_moderation} à garder une trace des décisions.",
+        "fields": {
+          "channels": {
+            "name": "📂 Les salons du conseil",
+            "value": "{ch_staff_reports} signalements à traiter\n{ch_staff_logs} journal réservé à {role_founder}, {role_admin} et {role_moderator}\n{ch_staff_discord} messages officiels de Discord\n{ch_staff_tests} pour essayer une commande sans témoin"
+          },
+          "ladder": {
+            "name": "⚖️ Échelle de sanctions",
+            "value": "① Rappel à l'ordre\n② Exclusion temporaire\n③ Expulsion\n④ Bannissement\nChaque étape se note dans {ch_staff_moderation}, avec sa raison."
+          },
+          "tools": {
+            "name": "🧰 Outils",
+            "value": "`/admin lookup` affiche l'historique d'un joueur, `/admin eco-ban` suspend son économie. Ces commandes sont réservées aux propriétaires du bot : {role_support} fait remonter, {role_founder} tranche."
+          }
+        }
+      }
+    },
+    "note": {
+      "community_enabled": "🏘️ Mode Communauté activé : salons d'annonces, forums et scène sont disponibles.",
+      "community_failed": "🏘️ Le mode Communauté n'a pas pu être activé ({reason}). Faites-le depuis Paramètres du serveur → Activer la communauté, puis relancez `/serverkit build existing:sync`.",
+      "community_fallback": "{name} : posé en salon ordinaire, faute de mode Communauté.",
+      "forum_fallback": "{name} : Discord a refusé le forum, posé en salon textuel."
+    },
+    "ui": {
+      "owner_only_title": "🔒 Réservé au propriétaire du bot",
+      "owner_only_body": "`/serverkit` bâtit et démolit des serveurs entiers : seuls les identifiants de `BOT_OWNER_IDS` y ont accès.",
+      "missing_permissions_title": "🧱 Il me manque des droits",
+      "missing_permissions_body": "Pour poser rôles, salons et permissions, j'ai besoin de la permission **{permissions}** sur ce serveur.\n\nParamètres du serveur → Rôles → mon rôle → **Administrateur**, puis placez ce rôle tout en haut de la liste. Vous pourrez retirer ce droit une fois le chantier terminé.",
+      "unknown_server": "Je ne suis pas sur le serveur `{id}`. Invitez-moi d'abord là-bas, puis relancez la commande.",
+      "busy": "Un chantier est déjà en cours sur ce serveur. Attendez son rapport avant d'en lancer un autre.",
+      "styles_title": "🎨 Polices et cadres du kit",
+      "styles_body": "Aperçu de chaque combinaison sur un même salon. Aucun nom ne contient de tiret : les mots d'un salon textuel sont soudés par `・`.",
+      "styles_fonts_field": "🔤 Polices (option `font`)",
+      "styles_frames_field": "🖼️ Cadres (option `frame`)",
+      "styles_sample": "patch notes",
+      "preview_title": "🗺️ Plan du serveur",
+      "preview_body": "**Serveur** {guild}\n{summary}\n➕ à créer ・ ✅ déjà en place\n\n**Langue** {language} ・ **Police** {font} ・ **Cadre** {frame}",
+      "preview_roles_field": "🎭 Rôles",
+      "summary": "**{missing}** éléments à créer ・ **{existing}** déjà en place",
+      "confirm_title": "🏗️ Lancer le chantier ?",
+      "confirm_body": "**Serveur** {guild}\n{summary}\n\n**Portée** {scope}\n**Existant** {existing}\n**Communauté** {community}\n**Langue** {language} ・ **Police** {font} ・ **Cadre** {frame}\n\nExemple : {sample}",
+      "scope_all": "tout (rôles, salons, réglages, panneaux)",
+      "scope_roles": "rôles uniquement",
+      "scope_channels": "catégories et salons uniquement",
+      "scope_panels": "panneaux uniquement",
+      "scope_settings": "réglages du serveur uniquement",
+      "existing_keep": "conservé tel quel",
+      "existing_sync": "réaligné sur le plan (nom, catégorie, sujet, droits)",
+      "community_on": "activation tentée",
+      "community_off": "laissée telle quelle",
+      "cancelled_title": "🌙 Chantier annulé",
+      "cancelled_body": "Rien n'a été touché.",
+      "progress_title": "🏗️ Chantier en cours…",
+      "progress_body": "{bar}\n{phase} ・ {done}/{total}",
+      "phase_roles": "Rôles",
+      "phase_categories": "Catégories",
+      "phase_channels": "Salons",
+      "phase_settings": "Réglages du serveur",
+      "phase_panels": "Panneaux",
+      "phase_wipe": "Démolition",
+      "done_title": "🌾 Chantier terminé",
+      "done_body": "➕ **{created}** créés ・ ♻️ **{updated}** mis à jour ・ ✅ **{kept}** conservés ・ ⚠️ **{failed}** échecs\n⏱️ {seconds} s",
+      "failures_field": "⚠️ À reprendre",
+      "failure_line": "**{name}** : {reason}",
+      "notes_field": "📝 À savoir",
+      "next_field": "👉 Et maintenant",
+      "next_body": "① Attribuez les rôles d'équipe à vos modérateurs\n② Branchez {reminders} avec `/server reminders`\n③ Retirez-moi la permission Administrateur si vous le souhaitez : les salons gardent mes droits d'écriture\n④ Les dossiers de serveurs sont propres à chaque membre : aucun bot ne peut en créer",
+      "wipe_confirm_title": "🧨 Confirmer la démolition ?",
+      "wipe_confirm_kit": "Seront supprimés les **{channels}** salons et catégories et les **{roles}** rôles reconnus comme posés par le kit. Le reste du serveur n'est pas touché.\n\n**Cette action est irréversible.**",
+      "wipe_confirm_all": "Seront supprimés **TOUS** les salons ({channels}) et **TOUS** les rôles que je peux gérer ({roles}) de **{guild}**. Seul ce salon sera épargné, pour que vous puissiez lire le rapport.\n\n**Cette action est irréversible.**",
+      "wipe_name_mismatch": "Pour tout démolir, l'option `server_name` doit reprendre exactement le nom du serveur : **{guild}**.",
+      "wipe_done_title": "🧹 Démolition terminée",
+      "wipe_done_body": "🗑️ **{removed}** éléments supprimés ・ ⚠️ **{failed}** échecs\n⏱️ {seconds} s",
+      "role_added": "✅ Rôle {role} ajouté.",
+      "role_removed": "👋 Rôle {role} retiré.",
+      "role_missing": "Ce rôle n'existe plus sur le serveur. Prévenez l'équipe.",
+      "role_forbidden": "Ce rôle n'est pas en libre-service.",
+      "role_failed": "Impossible de modifier vos rôles : mon rôle doit être placé au-dessus de {role} et garder la permission de gérer les rôles."
+    }
+  }
+}

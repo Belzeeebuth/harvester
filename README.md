@@ -186,7 +186,7 @@ nom du champ fautif. `.env.example` est intégralement commenté ; voici l'ensem
 | `DISCORD_CLIENT_ID` | Identifiant de l'application |
 | `DATABASE_URL` | `postgresql://user:pass@host:5432/harvester` |
 | `REDIS_URL` | `redis://host:6379` |
-| `BOT_OWNER_IDS` | Identifiants autorisés à `/admin`, séparés par des virgules |
+| `BOT_OWNER_IDS` | Identifiants autorisés à `/admin` et `/serverkit`, séparés par des virgules |
 
 **Secrets et sécurité**
 
@@ -563,6 +563,10 @@ réponse illustrée avec texte alternatif, repli texte automatique ;
 | `/admin stats` | `BOT_OWNER_IDS` | Tableau de bord : économie, inflation, jobs |
 | `/admin lookup <user>` | `BOT_OWNER_IDS` | Journal d'audit d'un joueur |
 | `/admin market-update` | `BOT_OWNER_IDS` | Forcer une mise à jour du marché (et l'évaluation des alertes) |
+| `/serverkit styles` | `BOT_OWNER_IDS` **uniquement** (le drapeau `is_admin` ne suffit pas), serveur uniquement | Galerie des 10 polices Unicode et des 5 cadres disponibles pour les noms |
+| `/serverkit preview [server] [language] [font] [frame]` | idem | Plan complet du serveur, à blanc : ➕ à créer, ✅ déjà en place |
+| `/serverkit build [server] [scope] [existing] [community] [language] [font] [frame]` | idem | Bâtit le serveur communautaire : 23 rôles, 7 catégories, 43 salons, permissions, réglages, panneaux. Confirmation par bouton, rapport final, écrit dans `audit_logs` |
+| `/serverkit wipe scope:kit\|all [server_name] [server]` | idem | Supprime ce que le kit a posé (`kit`) ou tout le serveur (`all`, nom du serveur exigé). Confirmation par bouton |
 
 ### Menus contextuels
 
@@ -658,6 +662,44 @@ veut y être mentionné active `/settings channel-reminders:true`. Un message pa
 salon et par tranche de `every` minutes, 20 joueurs au plus par message, aucune
 mention hors de cette liste ; salon supprimé ou permissions retirées → retour
 automatique aux MP.
+
+### Serveur communautaire clé en main
+
+`/serverkit build` pose, sur le serveur où la commande est tapée, tout le
+serveur communautaire de Harvester : rôles d'équipe, distinctions, rangs et
+rôles de notification, catégories, salons textuels, forums, annonces, vocaux,
+salons d'équipe cachés, permissions, réglages (salon système, salon AFK,
+`@everyone` privé du droit de mentionner tout le monde), mode Communauté, et les panneaux d'accueil (bienvenue,
+règlement, rôles en libre-service par boutons, guide, FAQ, mémo d'équipe).
+
+- **Aucun tiret.** Discord remplace l'espace d'un salon textuel par `-` ; le kit
+  soude les mots par `・` et écrit les noms en police Unicode « fancy »
+  (`👋・𝐛𝐢𝐞𝐧𝐯𝐞𝐧𝐮𝐞`, `「👋」ᴡᴇʟᴄᴏᴍᴇ`…). `/serverkit styles` montre les 10 polices
+  et les 5 cadres ; la palette des rôles est celle de `render/brand.ts`.
+- **Prérequis.** Le rôle du bot doit avoir **Administrateur** le temps du
+  chantier (poser des surcharges de permissions exige de détenir chaque droit
+  accordé) et être placé en haut de la liste des rôles. Le droit peut être
+  retiré ensuite : les salons gardent une surcharge propre au bot.
+- **Cible.** Avec `DISCORD_DEV_GUILD_ID`, les commandes n'existent que sur le
+  serveur de développement : `/serverkit` n'apparaîtrait pas sur le serveur neuf
+  à bâtir. Invitez-y le bot, puis lancez la commande depuis le serveur de
+  développement avec `server:<identifiant du serveur>`.
+- **Rejouable.** Un salon est reconnu par l'empreinte de son libellé, pas par
+  son nom exact : relancer avec une autre police, un autre cadre ou une autre
+  langue retrouve l'existant. `existing:keep` (défaut) n'y touche pas,
+  `existing:sync` le renomme, le range et refait ses droits. Discord limite à
+  deux renommages par salon et par dix minutes : un troisième changement de
+  style dans ce délai est consigné « timeout » et aboutit seul un peu plus tard.
+- **Mode Communauté.** Le règlement et le salon des nouvelles de Discord sont
+  posés d'abord, le mode activé, puis le reste : annonces, forums et scène sont
+  de vrais salons du bon type dès le premier passage. Si Discord refuse
+  l'activation, le kit se replie sur des salons ordinaires et le dit dans son
+  rapport.
+- **Contenu.** Structure dans `src/serverkit/blueprint.ts`, textes dans
+  `src/i18n/locales/{fr,en}/serverkit.json` ; `/serverkit build scope:panels`
+  met les panneaux à jour en place après une retouche.
+- Les **dossiers de serveurs** sont propres au client de chaque membre : aucune
+  API ne permet à un bot d'en créer.
 
 ### RGPD
 
@@ -761,7 +803,7 @@ en attente, sur une base vierge.
 
 ```
 src/
-├── commands/      25 fichiers. Parse les options, appelle un service, rend une vue. Jamais de SQL.
+├── commands/      26 fichiers. Parse les options, appelle un service, rend une vue. Jamais de SQL.
 ├── components/    buttons/ selects/ modals/ — chargés dynamiquement par nom de dossier
 ├── services/      Règles + transactions. Ne connaît pas discord.js.
 ├── repositories/  SQL uniquement. Ne connaît aucune règle de jeu.
@@ -770,6 +812,7 @@ src/
 ├── jobs/          17 tâches planifiées (definitions.ts), ordonnanceur BullMQ, worker de notifications
 ├── http/          /health, /metrics (registre Prometheus maison), /api/v1
 ├── i18n/          fr.json, en.json + fragments fr/*.json, en/*.json
+├── serverkit/     /serverkit : plan du serveur communautaire, noms sans tiret, constructeur, panneaux
 └── framework/     Registre, pipeline d'interaction, vues partagées, cooldowns
 ```
 
