@@ -66,3 +66,28 @@ confirmation.
   une image, largeur fixe) ne s'allongent pas.
 - Certains fragments sont collés par le code (espace de tête, deux-points de
   fin) : chercher la clé dans `src/` avant de déplacer une ponctuation.
+
+## Commandes slash
+
+Les commandes sont déclarées en anglais dans le code (texte par défaut exigé par
+Discord). Leur version française vit dans `src/i18n/locales/commands.fr.json`,
+une table plate `chemin → texte` :
+
+| Chemin | Texte |
+|---|---|
+| `shop#description` | description de `/shop` |
+| `shop/category#description` | description de son option `category` |
+| `shop/category#choice:daily` | nom affiché du choix `daily` |
+
+`src/i18n/commands.ts` greffe ces textes sur le corps envoyé à Discord
+(`description_localizations`, `name_localizations`), et `/help` les reprend pour
+les joueurs à qui le bot parle français. Les NOMS de commandes et d'options
+restent anglais : les textes du jeu citent partout `/plant`, `/sell`.
+
+- Description de commande : un infinitif ou un groupe nominal court (« Semer des
+  graines sur vos parcelles »), jamais « Permet de… ». Option : ce qu'il faut
+  saisir (« La graine à planter »). 100 caractères au plus, pas de point final.
+- Un choix qui correspond à un libellé du jeu reprend ce libellé mot pour mot.
+- `tests/commands-localization.test.ts` échoue si une commande, une option ou un
+  choix n'a pas son texte français, ou si une entrée ne correspond plus à rien.
+  Après un changement : `npm run commands:deploy` pour que Discord le voie.

@@ -580,8 +580,8 @@ const banque: Command = {
   cooldown: { seconds: 3 },
   data: new SlashCommandBuilder()
     .setName('bank')
-    .setDescription('Your bank account')
-    .addSubcommand((sub) => sub.setName('balance').setDescription('View your account'))
+    .setDescription('Your bank: deposits, withdrawals, upgrades')
+    .addSubcommand((sub) => sub.setName('balance').setDescription('Check your balance'))
     .addSubcommand((sub) =>
       sub
         .setName('deposit')
@@ -598,7 +598,7 @@ const banque: Command = {
           option.setName('amount').setDescription('Amount').setRequired(true).setMinValue(1),
         ),
     )
-    .addSubcommand((sub) => sub.setName('upgrade').setDescription('Upgrade your vault'))
+    .addSubcommand((sub) => sub.setName('upgrade').setDescription('Upgrade your bank'))
     .toJSON(),
 
   async execute(interaction, context): Promise<void> {

@@ -1,5 +1,6 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { localizeCommand } from '../i18n/commands';
 import { moduleLogger } from '../utils/logger';
 import type {
   ButtonHandler,
@@ -85,6 +86,9 @@ export function loadCommands(directory = join(__dirname, '..', 'commands')): num
       if (registry.commands.has(command.data.name)) {
         throw new Error(`Duplicate command: /${command.data.name} (${file})`);
       }
+      // Textes français greffés ici, une fois : le déploiement et `/help` lisent
+      // ensuite le même corps de commande.
+      localizeCommand(command.data);
       registry.commands.set(command.data.name, command);
       count += 1;
     }

@@ -79,7 +79,7 @@ const coop: Command = {
             .setDescription('New rank')
             .setRequired(true)
             .addChoices(
-              { name: 'Owner (transfers leadership)', value: 'owner' },
+              { name: 'Leader (transfers leadership)', value: 'owner' },
               { name: 'Officer', value: 'officer' },
               { name: 'Member', value: 'member' },
             ),

@@ -320,7 +320,7 @@ const fertiliser: Command = {
         .addChoices(
           { name: '💩 Basic fertilizer (+15 fertility, +10% yield)', value: 'fertilizer_basic' },
           { name: '🧪 Quality fertilizer (+25 fertility, +15% quality)', value: 'fertilizer_quality' },
-          { name: '✨ Deluxe fertilizer (+40 fertility, +25% both)', value: 'fertilizer_deluxe' },
+          { name: '✨ Deluxe fertilizer (+40 fertility, +25% yield and quality)', value: 'fertilizer_deluxe' },
         ),
     )
     .addIntegerOption((option) =>

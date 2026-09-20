@@ -4,6 +4,7 @@ import { COLORS, baseEmbed, button, row, select, selectRow } from '../framework/
 import { getRegistry } from '../framework/registry';
 import { formatCoins } from '../utils/format';
 import { translatorFor, DEFAULT_LOCALE } from '../i18n';
+import { commandDescription } from '../i18n/commands';
 import { replyEphemeral, safeReply } from '../framework/interaction';
 
 /** Onboarding, tutoriel et aide. */
@@ -191,10 +192,7 @@ export function helpEmbed(
   for (const command of registry.commands.values()) {
     if (command.adminOnly && category !== 'admin') continue;
     const list = commandsByCategory.get(command.category) ?? [];
-    const description =
-      'description' in command.data && typeof command.data.description === 'string'
-        ? command.data.description
-        : '';
+    const description = commandDescription(command.data, locale ?? DEFAULT_LOCALE);
     list.push(`\`/${command.data.name}\` · ${description}`);
     commandsByCategory.set(command.category, list);
   }
