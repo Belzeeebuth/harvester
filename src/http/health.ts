@@ -8,6 +8,7 @@ import { getConfig } from '../config';
 import { getRegistry } from '../framework/registry';
 import * as economyRepo from '../repositories/economy.repo';
 import { renderPoolStats } from '../render/pool';
+import { clockOffsetMs } from '../utils/discord-clock';
 import { handleApiRequest } from './api';
 import { metricsRegistry, setRenderPoolGauges } from './metrics';
 import { moduleLogger } from '../utils/logger';
@@ -32,6 +33,7 @@ interface Metrics {
   commandsTotal: number;
   commandErrors: number;
   interactionsTotal: number;
+  lateInteractions: number;
   startedAt: number;
 }
 
@@ -39,6 +41,7 @@ const metrics: Metrics = {
   commandsTotal: 0,
   commandErrors: 0,
   interactionsTotal: 0,
+  lateInteractions: 0,
   startedAt: Date.now(),
 };
 
@@ -49,6 +52,11 @@ export function recordCommand(success: boolean): void {
 
 export function recordInteraction(): void {
   metrics.interactionsTotal += 1;
+}
+
+/** Interaction livrée par la passerelle trop tard pour être acquittée dans les 3 s. */
+export function recordLateInteraction(): void {
+  metrics.lateInteractions += 1;
 }
 
 /**
@@ -167,6 +175,12 @@ async function renderMetrics(client: Client): Promise<string> {
     '# HELP harvester_interactions_total Interactions traitées',
     '# TYPE harvester_interactions_total counter',
     `harvester_interactions_total ${metrics.interactionsTotal}`,
+    '# HELP harvester_late_interactions_total Interactions reçues de la passerelle avec plus de 2 s de retard',
+    '# TYPE harvester_late_interactions_total counter',
+    `harvester_late_interactions_total ${metrics.lateInteractions}`,
+    '# HELP harvester_clock_offset_ms Décalage estimé de l’horloge du serveur par rapport à Discord',
+    '# TYPE harvester_clock_offset_ms gauge',
+    `harvester_clock_offset_ms ${Math.round(clockOffsetMs())}`,
     '# HELP harvester_guilds Serveurs Discord connectés (ce shard)',
     '# TYPE harvester_guilds gauge',
     `harvester_guilds ${client.guilds.cache.size}`,

@@ -25,7 +25,7 @@ import { assertOwner, parseCustomId } from '../utils/custom-id';
 import { isGameError } from '../utils/errors';
 import { withUserLock } from '../utils/lock';
 import { moduleLogger } from '../utils/logger';
-import { recordCommand, recordInteraction } from '../http/health';
+import { recordCommand, recordInteraction, recordLateInteraction } from '../http/health';
 import {
   OTHER_LABEL,
   boundedLabel,
@@ -33,6 +33,7 @@ import {
   observeComponentDuration,
   recordError,
 } from '../http/metrics';
+import { LATE_INTERACTION_MS, observeInteraction } from '../utils/discord-clock';
 import { reportIncident } from './error-reporter';
 import type { CommandContext } from '../types';
 
@@ -59,6 +60,22 @@ export function registerInteractionHandler(client: Client): void {
 }
 
 async function handleInteraction(interaction: Interaction): Promise<void> {
+  // Mesuré avant tout le reste : c'est le retard pris AVANT notre code, celui
+  // qu'aucune optimisation du pipeline ne rattrape.
+  const { lagMs } = observeInteraction(interaction.createdTimestamp);
+  if (lagMs > LATE_INTERACTION_MS) {
+    recordLateInteraction();
+    log.warn(
+      {
+        lagMs: Math.round(lagMs),
+        type: interaction.type,
+        command: interaction.isCommand() ? interaction.commandName : undefined,
+        wsPingMs: interaction.client.ws.ping,
+      },
+      'interaction reçue en retard de la passerelle : Discord l\'aura probablement déjà abandonnée',
+    );
+  }
+
   if (interaction.isAutocomplete()) {
     await handleAutocomplete(interaction);
     return;

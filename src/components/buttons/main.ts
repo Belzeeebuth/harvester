@@ -28,6 +28,7 @@ import * as miscService from '../../services/misc.service';
 import * as progressionService from '../../services/progression.service';
 import * as playerRepo from '../../repositories/player.repo';
 import { paramInt, paramString } from '../../utils/custom-id';
+import { toLocalClock } from '../../utils/discord-clock';
 import { formatCoins, formatNumber, qualityIcon } from '../../utils/format';
 import type { ButtonHandler, CommandContext } from '../../types';
 
@@ -314,7 +315,14 @@ const fishingButtons: ButtonHandler = {
   async execute(interaction: ButtonInteraction, parsed, context): Promise<void> {
     await interaction.deferUpdate();
     const castId = paramString(parsed, 0, '');
-    const result = await fishingService.resolveHook(context.player, castId, interaction.createdTimestamp);
+    // L'instant du clic est celui de Discord (le réseau ne pénalise pas le
+    // joueur), ramené sur NOTRE horloge : `biteAt` a été daté par elle, et les
+    // deux peuvent diverger de plusieurs minutes sur un hôte sans NTP.
+    const result = await fishingService.resolveHook(
+      context.player,
+      castId,
+      toLocalClock(interaction.createdTimestamp),
+    );
 
     let embed;
     if (result.fish) {
