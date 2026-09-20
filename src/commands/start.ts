@@ -195,7 +195,7 @@ export function helpEmbed(
       'description' in command.data && typeof command.data.description === 'string'
         ? command.data.description
         : '';
-    list.push(`\`/${command.data.name}\` — ${description}`);
+    list.push(`\`/${command.data.name}\` · ${description}`);
     commandsByCategory.set(command.category, list);
   }
 

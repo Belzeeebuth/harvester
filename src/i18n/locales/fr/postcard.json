@@ -9,7 +9,7 @@
     "postcard": {
       "brand": "HARVESTER",
       "greeting": "Bien le bonjour de la ferme !",
-      "signature": "— {name}",
+      "signature": "{name}",
       "level": "Niveau {level}",
       "prestige": "Prestige {rank}",
       "coins": "{coins} pièces",

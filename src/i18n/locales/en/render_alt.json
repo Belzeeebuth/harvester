@@ -23,11 +23,11 @@
       "plot_pest": "plot {slot} ({crop}, {pest})",
       "more": "and {count} more",
       "animals": "{count} animal(s) in the footer.",
-      "buildings": "{count} building(s) around the field.",
+      "buildings": "{count} building(s) around the farm.",
       "pet": "Equipped companion: {pet}."
     },
     "profile": {
-      "header": "Profile of {name} — {title}.",
+      "header": "Profile of {name}: {title}.",
       "prestige": "Prestige {rank}.",
       "coop": "Co-op [{tag}] {name}, level {level}.",
       "level": "Level {level}, {current} / {needed} XP.",
@@ -49,7 +49,7 @@
       "no_history": "No history: the curve only shows the current price."
     },
     "leaderboard": {
-      "header": "Leaderboard — {title} ({scope}).",
+      "header": "Leaderboard: {title} ({scope}).",
       "entries": "Podium and runners-up: {entries}.",
       "entry": "#{rank} {name}, {score} {unit}",
       "entry_extra": "#{rank} {name}, {score} {unit} ({extra})",
@@ -66,7 +66,7 @@
       "locked": "{count} level(s) out of reach, darkened."
     },
     "animals": {
-      "header": "{name}'s barnyard — {season}, {weather}.",
+      "header": "{name}'s barnyard. {season}, {weather}.",
       "totals": "{alive} animal(s), {hungry} hungry, {sick} sick, {ready} to collect.",
       "no_building": "No livestock building: a signpost invites you to build a coop.",
       "building": "{name} (tier {tier}), {used} / {capacity}: {animals}.",

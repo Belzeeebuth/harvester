@@ -12,7 +12,7 @@ import {
 } from '../game/market';
 import { qualityMultiplier } from '../game/quality';
 import { dailyRng, liveRng } from '../game/rng';
-import { gameError } from '../utils/errors';
+import { gameError, type GameError } from '../utils/errors';
 import { translatorFor, DEFAULT_LOCALE } from '../i18n';
 import { moduleLogger } from '../utils/logger';
 import * as economyRepo from '../repositories/economy.repo';
@@ -344,6 +344,43 @@ function toShopEntries(
   }));
 }
 
+function levelTooLow(level: number): GameError {
+  return gameError('level_too_low', `This article requires level ${level}.`, {
+    i18nKey: 'errors.market.item_level_too_low',
+    params: { level },
+  });
+}
+
+function outOfStock(remaining: number): GameError {
+  return gameError('not_found', `Not enough stock: only ${remaining} unit(s) left.`, {
+    i18nKey: 'errors.market.out_of_stock',
+    params: { remaining },
+  });
+}
+
+/** Article en vente aujourd'hui (boutique ou marché noir), ou `undefined`. */
+export async function findShopEntry(
+  itemKey: string,
+  now: Date = new Date(),
+  locale?: string,
+): Promise<ShopEntry | undefined> {
+  const rows = (await economyRepo.listShopStock(toSqlDate(now))).filter((row) => row.itemKey === itemKey);
+  return toShopEntries(rows, getConfig(locale))[0];
+}
+
+/**
+ * Refus connus AVANT l'achat : niveau insuffisant, rupture. Le menu de la
+ * boutique liste aussi ces articles (voir `shopChoices`) ; on les refuse donc
+ * avant d'ouvrir un modal de quantité voué à l'échec. `buy` refait ces contrôles
+ * sous verrou : ceci n'est qu'un raccourci d'affichage, pas une garantie.
+ */
+export function assertPurchasable(player: Pick<PlayerContext, 'level'>, entry: ShopEntry): void {
+  if (player.level < entry.requiredLevel) throw levelTooLow(entry.requiredLevel);
+  if (entry.stockRemaining <= 0) {
+    throw gameError('not_found', 'This item is sold out for today.', { i18nKey: 'errors.market.sold_out' });
+  }
+}
+
 export async function getShop(now: Date = new Date(), locale?: string): Promise<ShopEntry[]> {
   const config = getConfig(locale);
   const rotationDate = toSqlDate(now);
@@ -582,12 +619,7 @@ export async function buy(
         suggestedCommand: 'shop',
       });
     }
-    if (player.level < stock.requiredLevel) {
-      throw gameError('level_too_low', `This article requires level ${stock.requiredLevel}.`, {
-        i18nKey: 'errors.market.item_level_too_low',
-        params: { level: stock.requiredLevel },
-      });
-    }
+    if (player.level < stock.requiredLevel) throw levelTooLow(stock.requiredLevel);
     // Limite PAR JOUEUR, cumulée sur la journée — et non par achat. La
     // comparaison portait auparavant sur la seule quantité demandée : un joueur
     // bloqué à 1 exemplaire en achetait dix en dix commandes, ce qui vidait de
@@ -608,13 +640,7 @@ export async function buy(
     }
 
     const reserved = await economyRepo.reserveShopStock(stock.id, quantity, tx);
-    if (!reserved) {
-      throw gameError(
-        'not_found',
-        `Not enough stock: only ${stock.stockRemaining} unit(s) left.`,
-        { i18nKey: 'errors.market.out_of_stock', params: { remaining: stock.stockRemaining } },
-      );
-    }
+    if (!reserved) throw outOfStock(stock.stockRemaining);
 
     const total = stock.price * quantity;
     await economyService.charge(

@@ -46,7 +46,7 @@ const compagnon: Command = {
             : pet.owned
               ? context.t('pets.owned_marker')
               : context.t('pets.locked_marker', { level: pet.unlockLevel });
-          return `${pet.emoji} **${name}** — ${status}\n   *${description}*`;
+          return `${pet.emoji} **${name}** · ${status}\n   *${description}*`;
         });
         await interaction.editReply({
           embeds: [

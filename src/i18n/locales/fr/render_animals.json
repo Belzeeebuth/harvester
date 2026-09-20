@@ -4,7 +4,7 @@
     "animals": {
       "title": "Cheptel de {name}",
       "capacity": "{used} / {capacity} places",
-      "no_building": "Aucun bâtiment d'élevage — construisez un poulailler avec /buildings",
+      "no_building": "Aucun bâtiment d'élevage. Construisez un poulailler avec /buildings",
       "alive": "{count} animal(aux)",
       "hungry": "{count} affamé(s)",
       "sick": "{count} malade(s)",

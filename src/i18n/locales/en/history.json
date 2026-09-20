@@ -2,10 +2,10 @@
   "$comment": "Coin history (/history). Fragment merged with en.json at load time; same key tree as fr/history.json.",
   "history": {
     "title": "📒 Where did my coins go?",
-    "totals": "Over the {window}: in **{incoming}** · out **{outgoing}** · net **{net}**",
-    "totals_gems": "Gems: in **{incoming}** · out **{outgoing}** · net **{net}**",
+    "totals": "Over the {window}: in {incoming} · out {outgoing} · net **{net}**",
+    "totals_gems": "Gems: in {incoming} · out {outgoing} · net **{net}**",
     "empty": "No operation over the {window} for this filter. Widen the period (`days`) or pick another family (`type`).",
-    "footer": "{family} • {count} operations • page {page}/{total}",
+    "footer": "{family} · {count} operations · page {page}/{total}",
     "line": "{when} · {type} · **{amount}** → balance {balance}{details}",
     "line_item": " · {emoji} {name}{quantity}",
     "line_unit": " ({price} each)",

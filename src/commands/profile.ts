@@ -284,7 +284,7 @@ const stats: Command = {
                     : '',
                 ]
                   .filter(Boolean)
-                  .join('\n') || '—',
+                  .join('\n') || context.t('common.none'),
               inline: true,
             },
             {

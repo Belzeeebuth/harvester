@@ -260,7 +260,7 @@ export async function auctionListView(
                 ownerId: context.player.discordId,
                 placeholder: t('trade.buy_placeholder'),
                 choices: buyable.map((listing) => ({
-                  label: truncate(`${listing.quantity}× ${listing.itemName} — ${listing.buyoutPrice} 🪙`, 90),
+                  label: truncate(`${listing.quantity}× ${listing.itemName} · ${listing.buyoutPrice} 🪙`, 90),
                   value: listing.id,
                   emoji: listing.itemEmoji,
                   description: t('trade.seller_line', { seller: listing.sellerName }),

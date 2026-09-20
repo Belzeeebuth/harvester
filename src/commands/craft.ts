@@ -118,7 +118,7 @@ const recettes: Command = {
         .map((ingredient) => `${ingredient.needed}× ${ingredient.emoji}${ingredient.owned < ingredient.needed ? `(${ingredient.owned})` : ''}`)
         .join(' + ');
       return [
-        `${entry.recipe.emoji} **${entry.recipe.name}** — ${lock}`,
+        `${entry.recipe.emoji} **${entry.recipe.name}** · ${lock}`,
         `   ${context.t('craft.recipe_line2', {
           ingredients,
           quantity: entry.recipe.outputQuantity,
@@ -216,7 +216,7 @@ const batiments: Command = {
         .filter((building) => building.enabled && (!query || building.name.toLowerCase().includes(query)))
         .slice(0, 25)
         .map((building) => ({
-          name: truncate(`${building.emoji} ${building.name} — ${building.description ?? ''}`, 100),
+          name: truncate(`${building.emoji} ${building.name} · ${building.description ?? ''}`, 100),
           value: building.key,
         })),
     );

@@ -93,7 +93,7 @@ export function rewardsField(
   if (rewards.xp) parts.push(`${formatNumber(rewards.xp, locale)} ${XP}`);
   if (rewards.items) parts.push(rewards.items);
   if (parts.length === 0) return undefined;
-  return { name: `🎁 ${t('common.rewards_field')}`, value: parts.join(' • '), inline: false };
+  return { name: `🎁 ${t('common.rewards_field')}`, value: parts.join(' · '), inline: false };
 }
 
 // ---------------------------------------------------------------------------

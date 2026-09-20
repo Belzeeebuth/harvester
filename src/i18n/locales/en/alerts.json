@@ -2,13 +2,13 @@
   "$comment": "Price alerts (/alert). Fragment merged with en.json at load time; same key tree as fr/alerts.json.",
   "alerts": {
     "created_title": "🔔 Price alert created",
-    "created_body": "{emoji} **{name}** {symbol} {threshold}\nCurrent price: {price} • expires {relative}\nID: `{id}`",
+    "created_body": "{emoji} **{name}** {symbol} {threshold}\nCurrent price: {price} · expires {relative}\nID: `{id}`",
     "created_already_met": "ℹ️ The price already meets this condition: the alert will fire at the next market update ({when}).",
     "created_footer": "You will get a DM as soon as the market crosses this threshold.",
     "list_title": "🔔 Your price alerts",
-    "list_line": "{emoji} **{name}** {symbol} {threshold} — now: {price} — expires {relative}\n`{id}`",
+    "list_line": "{emoji} **{name}** {symbol} {threshold} · now: {price} · expires {relative}\n`{id}`",
     "list_empty": "No active alert. Create one with `/alert create`.",
-    "list_footer": "{count}/{max} alerts • market price, before quality and event bonuses",
+    "list_footer": "{count}/{max} alerts · market price, before quality and event bonuses",
     "deleted_title": "🔕 Alert removed",
     "deleted_body": "{emoji} **{name}** {symbol} {threshold} will no longer notify you."
   },
@@ -23,7 +23,7 @@
   },
   "notifications": {
     "price_alert_title": "🔔 Price alert",
-    "price_alert_above_body": "{emoji} **{item}** rose to {price} 🪙, above your {threshold} 🪙 threshold. Time to sell: `/sell` or `/auction sell`.",
-    "price_alert_below_body": "{emoji} **{item}** dropped to {price} 🪙, below your {threshold} 🪙 threshold. Good time to buy on the auction house: `/auction list`."
+    "price_alert_above_body": "{emoji} **{item}** rose to {price} 🪙, above your {threshold} 🪙 threshold. To sell: `/sell` or `/auction sell`.",
+    "price_alert_below_body": "{emoji} **{item}** dropped to {price} 🪙, below your {threshold} 🪙 threshold. To buy on the auction house: `/auction list`."
   }
 }

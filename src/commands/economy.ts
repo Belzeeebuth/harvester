@@ -34,7 +34,7 @@ const boutique: Command = {
   cooldown: { seconds: 3 },
   data: new SlashCommandBuilder()
     .setName('shop')
-    .setDescription('Village shop — stock refreshes daily')
+    .setDescription('Village shop, restocked every day')
     .addStringOption((option) =>
       option
         .setName('category')
@@ -106,7 +106,7 @@ const acheter: Command = {
         .slice(0, 25)
         .map((entry) => ({
           name: truncate(
-            `${entry.emoji} ${entry.name} — ${formatNumber(entry.price, context.locale)} ${entry.currency === 'gems' ? t('common.gems') : t('common.coins')}`,
+            `${entry.emoji} ${entry.name} · ${formatNumber(entry.price, context.locale)} ${entry.currency === 'gems' ? t('common.gems') : t('common.coins')}`,
             100,
           ),
           value: entry.itemKey,
@@ -154,7 +154,7 @@ const vendre: Command = {
       result.lines
         .map(
           (line) =>
-            `${line.emoji} **${formatNumber(line.quantity, context.locale)}× ${line.name}**${qualityIcon(line.quality)} — ${formatNumber(line.unitPrice, context.locale)} ${COIN}/u`,
+            `${line.emoji} **${formatNumber(line.quantity, context.locale)}× ${line.name}**${qualityIcon(line.quality)} · ${formatNumber(line.unitPrice, context.locale)} ${COIN}/u`,
         )
         .join('\n'),
     );
@@ -187,7 +187,7 @@ const vendre: Command = {
         .slice(0, 25)
         .map((entry) => ({
           name: truncate(
-            `${entry.emoji} ${entry.name}${qualityIcon(entry.quality)} ×${entry.quantity} — ~${formatNumber(entry.sellPrice, context.locale)} 🪙/u`,
+            `${entry.emoji} ${entry.name}${qualityIcon(entry.quality)} ×${entry.quantity} · ~${formatNumber(entry.sellPrice, context.locale)} 🪙/u`,
             100,
           ),
           value: entry.itemKey,
@@ -250,7 +250,7 @@ const marcheHistorique: Command = {
         .filter((row) => !query || row.name.toLowerCase().includes(query))
         .slice(0, 25)
         .map((row) => ({
-          name: truncate(`${row.emoji} ${row.name} — ${formatNumber(row.price, context.locale)} 🪙 (${row.trendLabel})`, 100),
+          name: truncate(`${row.emoji} ${row.name} · ${formatNumber(row.price, context.locale)} 🪙 (${row.trendLabel})`, 100),
           value: row.itemKey,
         })),
     );

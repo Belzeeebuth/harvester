@@ -233,8 +233,9 @@ describe('historique : en-tête', () => {
     );
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain('7 derniers jours');
-    expect(lines[0]).toContain(`**${formatNumber(1200, 'fr')} 🪙**`);
-    expect(lines[0]).toContain(`**${formatNumber(800, 'fr')} 🪙**`);
+    // Seul le net est en gras : c'est la réponse à « où sont passées mes pièces ? ».
+    expect(lines[0]).toContain(`entrées ${formatNumber(1200, 'fr')} 🪙`);
+    expect(lines[0]).toContain(`sorties ${formatNumber(800, 'fr')} 🪙`);
     expect(lines[0]).toContain('net **+400 🪙**');
   });
 

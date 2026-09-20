@@ -2,12 +2,12 @@
   "$comment": "/account fragment: data export and account deletion (GDPR). Merged with en.json at load time.",
   "account": {
     "export_title": "📦 Your data export",
-    "export_body": "Here is everything Harvester stores about you, as JSON: profile, settings, farm and plots, inventory, animals, buildings, bank, progression, companions, co-op, integrations, auction house and your last {transactions} ledger entries.",
+    "export_body": "Everything Harvester stores about you, as JSON: profile, settings, farm and plots, inventory, animals, buildings, bank, progression, companions, co-op, integrations, auction house and your last {transactions} ledger entries.",
     "export_truncated": "⚠️ Sections emptied to respect the maximum file size: {sections}.",
-    "export_privacy": "Only you can see this message. API keys and webhook secrets are never included — only their prefixes and URLs. You can export again in one hour.",
+    "export_privacy": "Only you can see this message. API keys and webhook secrets are never included: only their prefixes and URLs. You can export again in one hour.",
     "delete_title": "⚠️ Delete your account?",
     "delete_body": "This action is **irreversible**. Your farm, plots, animals, inventory, progression, coins and gems will be lost for good. Consider `/account export` first if you want to keep a copy.",
-    "delete_effects": "What happens right away:\n• your username is replaced by an anonymous identifier, display name and avatar are erased;\n• your settings are neutralised — no more notifications, farm set to private;\n• your API keys are revoked and your webhooks deleted;\n• your standing buy orders are cancelled;\n• you leave your co-op.",
+    "delete_effects": "What happens right away:\n• Your username is replaced by an anonymous identifier, display name and avatar are erased.\n• Your settings are neutralised: no more notifications, farm set to private.\n• Your API keys are revoked and your webhooks deleted.\n• Your standing buy orders are cancelled.\n• You leave your co-op.",
     "delete_keeps": "The ledger (your transactions) is kept for the audit of the game economy, tied to an internal identifier: it is neither public nor visible in the game.",
     "delete_expires": "This button stays valid for {minutes} minutes. If you ever come back, `/start` will create a brand-new farm.",
     "delete_confirm_button": "Delete permanently",
@@ -23,9 +23,9 @@
     "account": {
       "blocked": "Your account cannot be deleted yet. Settle the following first:\n• {reasons}",
       "blocked_hint": "Then run `/account delete` again.",
-      "blocker_listings": "{count} active auction listing(s) — `/auction cancel`, or wait for them to close",
-      "blocker_trades": "{count} trade(s) in progress — cancel them from the trade message",
-      "blocker_coop_owner": "you lead the co-op {name} — hand over the lead with `/coop promote`",
+      "blocker_listings": "{count} active auction listing(s): `/auction cancel`, or wait for them to close",
+      "blocker_trades": "{count} trade(s) in progress: cancel them from the trade message",
+      "blocker_coop_owner": "you lead the co-op {name}: hand over the lead with `/coop promote`",
       "already_deleted": "This account is already deleted."
     }
   }

@@ -37,7 +37,7 @@ const ferme: Command = {
   cooldown: { seconds: 3 },
   data: new SlashCommandBuilder()
     .setName('farm')
-    .setDescription("Show your farm — or another farmer's")
+    .setDescription("Show your farm, or another farmer's")
     .addUserOption((option) =>
       option.setName('user').setDescription('The farmer to watch').setRequired(false),
     )
@@ -200,7 +200,7 @@ export function buildHarvestEmbed(summary: farmService.HarvestSummary, t: Transl
       plot.regrew && plot.nextReadyAt
         ? ` ${t('farm.harvest_regrow', { relative: discordTimestamp(plot.nextReadyAt, 'R') })}`
         : '';
-    return `\`${String(plot.slot).padStart(2, ' ')}\` ${plot.emoji} **${plot.result.quantity}× ${plot.cropName}**${quality}${mutation} — ~${formatCoins(plot.result.totalValue, true, locale)}${regrow}`;
+    return `\`${String(plot.slot).padStart(2, ' ')}\` ${plot.emoji} **${plot.result.quantity}× ${plot.cropName}**${quality}${mutation} · ~${formatCoins(plot.result.totalValue, true, locale)}${regrow}`;
   });
 
   const embed = baseEmbed({
@@ -520,8 +520,8 @@ const cultures: Command = {
       const perHour = Math.round((profit / crop.growthSeconds) * 3_600);
       const locked = crop.requiredLevel > context.player.level ? '🔒 ' : '';
       return [
-        `${locked}${crop.emoji} **${crop.name}** — ${context.t(`common.rarity.${crop.rarity}`)} • ${context.t('common.level_abbr', { level: crop.requiredLevel })}`,
-        `   🌱 ${formatNumber(crop.seedPrice, context.locale)} ${COIN} → 🧺 ${crop.baseYield}× ${formatNumber(crop.sellPrice, context.locale)} ${COIN} • ⏳ ${formatDuration(crop.growthSeconds * 1000, context.locale)} • **~${formatNumber(perHour, context.locale)} ${COIN}/h/plot**${crop.regrowCycles > 0 ? ` • 🔁 ${crop.regrowCycles}` : ''}`,
+        `${locked}${crop.emoji} **${crop.name}** · ${context.t(`common.rarity.${crop.rarity}`)} · ${context.t('common.level_abbr', { level: crop.requiredLevel })}`,
+        `   🌱 ${formatNumber(crop.seedPrice, context.locale)} ${COIN} → 🧺 ${crop.baseYield}× ${formatNumber(crop.sellPrice, context.locale)} ${COIN} · ⏳ ${formatDuration(crop.growthSeconds * 1000, context.locale)} · **~${formatNumber(perHour, context.locale)} ${COIN}/h/plot**${crop.regrowCycles > 0 ? ` · 🔁 ${crop.regrowCycles}` : ''}`,
       ].join('\n');
     });
 

@@ -879,6 +879,7 @@ Aucune ligne de code à écrire.
 | [06 — Roadmap](./docs/06-roadmap.md) | Ce qui est livré (v2.1 → v2.8, v3.2) et ce qui a été retenu, extensions à venir, dette technique |
 | [07 — API publique](./docs/07-api-publique.md) | Authentification, endpoints, webhooks sortants (`crop_ready`, `auction_won`, `price_alert`), webhook entrant top.gg |
 | [08 — Exploitation](./docs/08-exploitation.md) | Carnet d'incidents par symptôme, bascule en mode shardé, suivi du journal comptable |
+| [09 — Rédaction](./docs/09-redaction.md) | Voix des textes joueurs, règles de ponctuation et d'émojis, vocabulaire fr/en |
 | [ops/grafana](./ops/grafana/README.md) | Tableau Grafana importable et configuration de scrape Prometheus |
 
 ---

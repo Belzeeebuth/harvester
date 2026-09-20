@@ -111,7 +111,7 @@ export async function renderProfile(input: ProfileRenderInput): Promise<Buffer> 
     input.coop ? `[${input.coop.tag}] ${input.coop.name}` : null,
   ]
     .filter(Boolean)
-    .join(' • ');
+    .join(' · ');
   ctx.fillText(clipText(ctx, subtitle, 420), nameX, bannerHeight + 52);
 
   // --- Niveau et XP -----------------------------------------------------

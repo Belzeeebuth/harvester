@@ -9,7 +9,7 @@
     "postcard": {
       "brand": "HARVESTER",
       "greeting": "Greetings from the farm!",
-      "signature": "— {name}",
+      "signature": "{name}",
       "level": "Level {level}",
       "prestige": "Prestige {rank}",
       "coins": "{coins} coins",

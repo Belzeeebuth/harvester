@@ -430,7 +430,7 @@ export async function sendLeaderboard(
       board.rows
         .map(
           (entry) =>
-            `${entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `\`#${entry.rank}\``} **${entry.name}** — ${formatCompact(entry.score, context.locale)} ${meta.unit}`,
+            `${entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `\`#${entry.rank}\``} **${entry.name}** · ${formatCompact(entry.score, context.locale)} ${meta.unit}`,
         )
         .join('\n') || t('leaderboard.empty'),
     color: COLORS.gold,
@@ -550,7 +550,7 @@ const aider: Command = {
   cooldown: { seconds: 60, bucket: 'help' },
   data: new SlashCommandBuilder()
     .setName('assist')
-    .setDescription("Water another farmer's plots — you both gain")
+    .setDescription("Water another farmer's plots: you both gain")
     .addUserOption((option) =>
       option.setName('user').setDescription('The farmer to help').setRequired(true),
     )

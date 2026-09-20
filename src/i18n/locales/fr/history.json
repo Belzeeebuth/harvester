@@ -2,10 +2,10 @@
   "$comment": "Historique des pièces (/history). Fragment fusionné avec fr.json au chargement ; même arborescence que en/history.json.",
   "history": {
     "title": "📒 Où sont passées mes pièces ?",
-    "totals": "Sur les {window} : entrées **{incoming}** · sorties **{outgoing}** · net **{net}**",
-    "totals_gems": "Gemmes : entrées **{incoming}** · sorties **{outgoing}** · net **{net}**",
+    "totals": "Sur les {window} : entrées {incoming} · sorties {outgoing} · net **{net}**",
+    "totals_gems": "Gemmes : entrées {incoming} · sorties {outgoing} · net **{net}**",
     "empty": "Aucune opération sur les {window} pour ce filtre. Élargissez la période (`days`) ou changez de famille (`type`).",
-    "footer": "{family} • {count} opérations • page {page}/{total}",
+    "footer": "{family} · {count} opérations · page {page}/{total}",
     "line": "{when} · {type} · **{amount}** → solde {balance}{details}",
     "line_item": " · {emoji} {name}{quantity}",
     "line_unit": " ({price} l'unité)",
@@ -74,7 +74,7 @@
       "admin_remove": "Retrait par l'administration"
     },
     "pseudo_item": {
-      "almanac": "Prévision de l’almanach"
+      "almanac": "Prévision de l'almanach"
     }
   }
 }

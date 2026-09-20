@@ -317,7 +317,7 @@ export async function renderFarm(input: FarmRenderInput): Promise<Buffer> {
   ctx.font = font(18);
   ctx.fillStyle = PALETTE.textMuted;
   ctx.fillText(
-    `${input.player.username} • ${t('render.farm.level', { level: input.player.level })}`,
+    `${input.player.username} · ${t('render.farm.level', { level: input.player.level })}`,
     textX,
     66,
   );
@@ -355,7 +355,7 @@ export async function renderFarm(input: FarmRenderInput): Promise<Buffer> {
   ctx.font = font(14);
   ctx.fillStyle = PALETTE.textMuted;
   ctx.fillText(
-    `${t(`world.season.${season}`)} • ${input.view.world.weather.temperature} °C`,
+    `${t(`world.season.${season}`)} · ${input.view.world.weather.temperature} °C`,
     infoX + 46,
     52,
   );

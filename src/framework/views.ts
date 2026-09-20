@@ -88,7 +88,7 @@ export async function farmView(
   const embed = baseEmbed({
     title: `🌾 ${view.name}`,
     description: [
-      `**${view.world.weather.emoji} ${view.world.weather.label}** — ${view.world.weather.description}`,
+      `**${view.world.weather.emoji} ${view.world.weather.label}** · ${view.world.weather.description}`,
       view.world.weather.freeWatering ? t('farm.free_watering_today') : '',
       '',
       t('farm.summary', { ready: counts.ready, growing: counts.growing, empty: counts.empty, locked: counts.locked }),
@@ -129,7 +129,7 @@ export async function farmView(
               : plot.crop.growth.ready
                 ? `✅ ${t('farm.plot_ready')}`
                 : `⏳ ${formatDuration(plot.crop.growth.msRemaining, locale)}`;
-            return `\`${String(plot.slot).padStart(2, ' ')}\` ${plot.crop.emoji} ${plot.crop.name} — ${status}${plot.crop.growth.needsWater ? ' 💧' : ''}`;
+            return `\`${String(plot.slot).padStart(2, ' ')}\` ${plot.crop.emoji} ${plot.crop.name} · ${status}${plot.crop.growth.needsWater ? ' 💧' : ''}`;
           })
           .join('\n') || t('farm.no_plot_unlocked'),
     });
@@ -203,11 +203,11 @@ export async function plotsView(context: CommandContext, page = 1): Promise<View
 
   const lines = slice.map((plot) => {
     if (plot.state === 'locked') {
-      return `\`${String(plot.slot).padStart(2, ' ')}\` 🔒 ${t('farm.plot_locked')} — ${formatCoins(plot.unlockCost, false, locale)}`;
+      return `\`${String(plot.slot).padStart(2, ' ')}\` 🔒 ${t('farm.plot_locked')} · ${formatCoins(plot.unlockCost, false, locale)}`;
     }
     const soil = t('farm.soil_status', { pct: plot.fertility, label: t(plot.fertilityLabel) });
     if (!plot.crop) {
-      return `\`${String(plot.slot).padStart(2, ' ')}\` ⬜ ${t('farm.plot_empty')} — ${soil}${plot.weedLevel > 30 ? ` • ${t('farm.weeds_status', { pct: plot.weedLevel })}` : ''}`;
+      return `\`${String(plot.slot).padStart(2, ' ')}\` ⬜ ${t('farm.plot_empty')} · ${soil}${plot.weedLevel > 30 ? ` · ${t('farm.weeds_status', { pct: plot.weedLevel })}` : ''}`;
     }
     const status = plot.crop.growth.withered
       ? `💀 ${t('farm.plot_withered')}`
@@ -215,8 +215,8 @@ export async function plotsView(context: CommandContext, page = 1): Promise<View
         ? `✅ **${t('farm.plot_ready')}**`
         : `⏳ ${discordTimestamp(plot.crop.growth.readyAt, 'R')}`;
     return [
-      `\`${String(plot.slot).padStart(2, ' ')}\` ${plot.crop.emoji} **${plot.crop.name}** — ${status}`,
-      `      ${soil} • 💧 ${plot.crop.waterGiven}/${plot.crop.waterNeeded}${plot.pestType ? ` • 🐛 ${t('farm.plot_pest')}` : ''}${plot.crop.regrowRemaining > 0 ? ` • ${t('farm.regrow_count', { count: plot.crop.regrowRemaining })}` : ''}`,
+      `\`${String(plot.slot).padStart(2, ' ')}\` ${plot.crop.emoji} **${plot.crop.name}** · ${status}`,
+      `      ${soil} · 💧 ${plot.crop.waterGiven}/${plot.crop.waterNeeded}${plot.pestType ? ` · 🐛 ${t('farm.plot_pest')}` : ''}${plot.crop.regrowRemaining > 0 ? ` · ${t('farm.regrow_count', { count: plot.crop.regrowRemaining })}` : ''}`,
     ].join('\n');
   });
 
@@ -322,7 +322,7 @@ export async function inventoryView(
 
   const lines = page.entries.map((entry) => {
     const icons = `${qualityIcon(entry.quality)}${mutationIcon(entry.mutation)}`;
-    const value = entry.sellable ? ` — ${formatCoins(entry.sellPrice * entry.quantity, true, locale)}` : '';
+    const value = entry.sellable ? ` · ${formatCoins(entry.sellPrice * entry.quantity, true, locale)}` : '';
     return `${entry.emoji} **${entry.name}**${icons} ×${formatNumber(entry.quantity, locale)}${value}`;
   });
 
@@ -399,6 +399,44 @@ export async function inventoryView(
 // BOUTIQUE
 // ---------------------------------------------------------------------------
 
+/**
+ * Options du menu d'achat. Le menu liste TOUT ce que l'écran affiche, articles
+ * verrouillés et épuisés compris : les masquer donnait un menu à une seule ligne
+ * sous six offres du jour, sans un mot d'explication. Discord ne sait pas griser
+ * une option isolée : le motif du refus est écrit dans la description, et
+ * `shopBuy` le prononce avant d'ouvrir le modal de quantité.
+ *
+ * Achetables d'abord, pour que la limite de 25 options ne coupe jamais un
+ * article que le joueur peut réellement prendre.
+ */
+export function shopChoices(
+  entries: marketService.ShopEntry[],
+  context: Pick<CommandContext, 't' | 'locale' | 'player'>,
+): Array<{ label: string; value: string; emoji: string; description: string }> {
+  const { t, locale, player } = context;
+  const rank = (entry: marketService.ShopEntry): number =>
+    entry.stockRemaining <= 0 ? 2 : entry.requiredLevel > player.level ? 1 : 0;
+
+  return [...entries]
+    .sort((a, b) => rank(a) - rank(b))
+    .slice(0, 25)
+    .map((entry) => {
+      const price = `${formatNumber(entry.price, locale)} ${entry.currency === 'gems' ? t('common.gems') : t('common.coins')}`;
+      const blocked =
+        entry.stockRemaining <= 0
+          ? t('shop.sold_out')
+          : entry.requiredLevel > player.level
+            ? `🔒 ${t('shop.option_locked', { level: entry.requiredLevel })}`
+            : null;
+      return {
+        label: `${entry.name} · ${price}`,
+        value: entry.itemKey,
+        emoji: entry.emoji,
+        description: truncate(blocked ?? entry.description ?? '', 100),
+      };
+    });
+}
+
 export async function shopView(context: CommandContext, category?: string): Promise<View> {
   const player = context.player;
   const t = context.t;
@@ -426,15 +464,15 @@ export async function shopView(context: CommandContext, category?: string): Prom
       .slice(0, 10)
       .map((entry) => {
         const price = `${formatNumber(entry.price, locale)} ${entry.currency === 'gems' ? '💎' : COIN}`;
-        const discount = entry.discountPercent > 0 ? ` ~~-${entry.discountPercent}%~~` : '';
+        const discount = entry.discountPercent > 0 ? ` (-${entry.discountPercent} %)` : '';
         const stock =
           entry.stockRemaining >= 999
             ? ''
             : entry.stockRemaining <= 0
-              ? ` — **${t('shop.sold_out')}**`
-              : ` — ${t('shop.in_stock', { remaining: entry.stockRemaining })}`;
+              ? ` · **${t('shop.sold_out')}**`
+              : ` · ${t('shop.in_stock', { remaining: entry.stockRemaining })}`;
         const level = entry.requiredLevel > player.level ? ` 🔒 ${t('common.level_abbr', { level: entry.requiredLevel })}` : '';
-        return `${entry.emoji} **${entry.name}** — ${price}${discount}${stock}${level}`;
+        return `${entry.emoji} **${entry.name}** · ${price}${discount}${stock}${level}`;
       })
       .join('\n'),
   }));
@@ -449,10 +487,6 @@ export async function shopView(context: CommandContext, category?: string): Prom
     fields,
   });
 
-  const buyable = filtered.filter(
-    (entry) => entry.stockRemaining > 0 && entry.requiredLevel <= player.level,
-  );
-
   return {
     embeds: [embed],
     components: [
@@ -462,13 +496,7 @@ export async function shopView(context: CommandContext, category?: string): Prom
           action: 'buy',
           ownerId: player.discordId,
           placeholder: t('shop.buy_placeholder'),
-          choices: buyable.slice(0, 25).map((entry) => ({
-            label: `${entry.name} — ${entry.price} ${entry.currency === 'gems' ? t('common.gems') : t('common.coins')}`,
-            value: entry.itemKey,
-            emoji: entry.emoji,
-            description: truncate(entry.description ?? '', 100),
-          })),
-          disabled: buyable.length === 0,
+          choices: shopChoices(filtered, context),
         }),
       ),
       row(
@@ -518,13 +546,13 @@ export async function blackMarketView(context: CommandContext): Promise<View> {
                 const price = `${formatNumber(entry.price, locale)} ${COIN}`;
                 const stock =
                   entry.stockRemaining <= 0
-                    ? ` — **${t('shop.sold_out')}**`
-                    : ` — ${t('shop.in_stock', { remaining: entry.stockRemaining })}`;
+                    ? ` · **${t('shop.sold_out')}**`
+                    : ` · ${t('shop.in_stock', { remaining: entry.stockRemaining })}`;
                 const level =
                   entry.requiredLevel > player.level
                     ? ` 🔒 ${t('common.level_abbr', { level: entry.requiredLevel })}`
                     : '';
-                return `${entry.emoji} **${entry.name}** — ${price}${stock}${level}`;
+                return `${entry.emoji} **${entry.name}** · ${price}${stock}${level}`;
               })
               .join('\n'),
           },
@@ -541,10 +569,6 @@ export async function blackMarketView(context: CommandContext): Promise<View> {
     fields,
   });
 
-  const buyable = entries.filter(
-    (entry) => entry.stockRemaining > 0 && entry.requiredLevel <= player.level,
-  );
-
   return {
     embeds: [embed],
     components: [
@@ -554,13 +578,7 @@ export async function blackMarketView(context: CommandContext): Promise<View> {
           action: 'buy',
           ownerId: player.discordId,
           placeholder: t('shop.buy_placeholder'),
-          choices: buyable.slice(0, 25).map((entry) => ({
-            label: `${entry.name} — ${formatNumber(entry.price, locale)} ${t('common.coins')}`,
-            value: entry.itemKey,
-            emoji: entry.emoji,
-            description: truncate(entry.description ?? '', 100),
-          })),
-          disabled: buyable.length === 0,
+          choices: shopChoices(entries, context),
         }),
       ),
       row(button({ namespace: 'blackmarket', action: 'open', ownerId: player.discordId, emoji: '🔄' })),
@@ -592,7 +610,7 @@ export async function marketView(context: CommandContext, category?: string): Pr
   const alphabetical = [...rows].sort((a, b) => a.name.localeCompare(b.name));
 
   const format = (entry: (typeof rows)[number]): string =>
-    `${entry.trendEmoji} ${entry.emoji} **${entry.name}** — ${formatNumber(entry.price, locale)} ${COIN} (${formatPercent(entry.trend, 1, locale)})`;
+    `${entry.trendEmoji} ${entry.emoji} **${entry.name}** · ${formatNumber(entry.price, locale)} ${COIN} (${formatPercent(entry.trend, 1, locale)})`;
 
   // Marché entièrement plat (aucun objet ne franchit le seuil de mouvement) :
   // plutôt que deux champs vides, on affiche un repère par prix. Pas de
@@ -600,22 +618,22 @@ export async function marketView(context: CommandContext, category?: string): Pr
   // reproduirait exactement la confusion d'origine.
   const byPrice = [...rows].sort((a, b) => a.price - b.price);
   const formatPriceOnly = (entry: (typeof rows)[number]): string =>
-    `${entry.emoji} **${entry.name}** — ${formatNumber(entry.price, locale)} ${COIN}`;
+    `${entry.emoji} **${entry.name}** · ${formatNumber(entry.price, locale)} ${COIN}`;
   const fields =
     rising.length > 0 || falling.length > 0
       ? [
-          { name: `📈 ${t('market.trend_up')}`, value: rising.map(format).join('\n') || '—', inline: false },
-          { name: `📉 ${t('market.trend_down')}`, value: falling.map(format).join('\n') || '—', inline: false },
+          { name: `📈 ${t('market.trend_up')}`, value: rising.map(format).join('\n') || t('common.none'), inline: false },
+          { name: `📉 ${t('market.trend_down')}`, value: falling.map(format).join('\n') || t('common.none'), inline: false },
         ]
       : [
           {
             name: `💰 ${t('market.cheapest_title')}`,
-            value: byPrice.slice(0, 8).map(formatPriceOnly).join('\n') || '—',
+            value: byPrice.slice(0, 8).map(formatPriceOnly).join('\n') || t('common.none'),
             inline: false,
           },
           {
             name: `💎 ${t('market.priciest_title')}`,
-            value: [...byPrice].reverse().slice(0, 8).map(formatPriceOnly).join('\n') || '—',
+            value: [...byPrice].reverse().slice(0, 8).map(formatPriceOnly).join('\n') || t('common.none'),
             inline: false,
           },
         ];
@@ -636,7 +654,7 @@ export async function marketView(context: CommandContext, category?: string): Pr
   if (featured.length > 0) {
     embed.addFields({
       name: `⭐ ${t('market.featured_field')}`,
-      value: featured.map((entry) => `${entry.emoji} ${entry.name}`).join(' • '),
+      value: featured.map((entry) => `${entry.emoji} ${entry.name}`).join(' · '),
     });
   }
 
@@ -650,10 +668,10 @@ export async function marketView(context: CommandContext, category?: string): Pr
           ownerId: context.player.discordId,
           placeholder: t('market.chart_placeholder'),
           choices: alphabetical.slice(0, 25).map((entry) => ({
-            label: `${entry.name} — ${entry.price} 🪙`,
+            label: `${entry.name} · ${entry.price} 🪙`,
             value: entry.itemKey,
             emoji: entry.emoji,
-            description: `${entry.trendLabel} • ${t(`common.rarity.${entry.rarity}`)}`,
+            description: `${entry.trendLabel} · ${t(`common.rarity.${entry.rarity}`)}`,
           })),
         }),
       ),
@@ -777,15 +795,24 @@ export async function animalsView(context: CommandContext, page = 1): Promise<Vi
       ? `✅ **${animal.status.readyProduction}× ${animal.productEmoji}**`
       : animal.status.nextProductionAt
         ? `⏳ ${discordTimestamp(animal.status.nextProductionAt, 'R')}`
-        : '—';
+        : '';
     // L'icône de variante (✨ shiny, 🌟 dorée) suit le nom : c'est la seule
     // trace textuelle d'une bête rare, l'image la montre par son halo.
     const icon = variantIcon(animal.variant);
     return [
-      `${animal.emoji} **${animal.nickname ?? animal.name}**${icon ? ` ${icon}` : ''} — ${animal.status.mood}`,
+      `${animal.emoji} **${animal.nickname ?? animal.name}**${icon ? ` ${icon}` : ''} · ${animal.status.mood}`,
       `   🍽️ ${gaugeBar(animal.status.hunger, 5)} ${animal.status.hunger}%  💛 ${gaugeBar(animal.status.happiness, 5)} ${animal.status.happiness}%  ❤️ ${animal.status.health}%`,
-      `   ${production}${animal.generation > 1 ? ` • ${t('animals.generation_suffix', { gen: animal.generation })}` : ''}${animal.qualityMultiplier !== 1 ? ` • ×${animal.qualityMultiplier.toFixed(2)}` : ''}`,
-    ].join('\n');
+      [
+        production,
+        animal.generation > 1 ? t('animals.generation_suffix', { gen: animal.generation }) : '',
+        animal.qualityMultiplier !== 1 ? `×${animal.qualityMultiplier.toFixed(2)}` : '',
+      ]
+        .filter(Boolean)
+        .map((part, index) => (index === 0 ? `   ${part}` : part))
+        .join(' · '),
+    ]
+      .filter(Boolean)
+      .join('\n');
   });
 
   const embed = baseEmbed({
@@ -797,7 +824,7 @@ export async function animalsView(context: CommandContext, page = 1): Promise<Vi
         name: t('common.buildings'),
         value:
           herd.capacityByBuilding
-            .map((entry) => `${entry.emoji} ${entry.name} — ${entry.used}/${entry.capacity} (${t('craft.tier_label', { tier: entry.tier })})`)
+            .map((entry) => `${entry.emoji} ${entry.name} · ${entry.used}/${entry.capacity} (${t('craft.tier_label', { tier: entry.tier })})`)
             .join('\n') || t('animals.no_building_field'),
         inline: false,
       },
@@ -871,8 +898,8 @@ export async function questsView(
   const resets = progressionService.questResetTimes();
 
   const allSections: Array<{ key: 'daily' | 'weekly' | 'story' | 'contract'; title: string }> = [
-    { key: 'daily', title: `📅 ${t('quests.daily')} — ${t('quests.resets', { when: discordTimestamp(resets.daily, 'R') })}` },
-    { key: 'weekly', title: `🗓️ ${t('quests.weekly')} — ${t('quests.resets', { when: discordTimestamp(resets.weekly, 'R') })}` },
+    { key: 'daily', title: `📅 ${t('quests.daily')} · ${t('quests.resets', { when: discordTimestamp(resets.daily, 'R') })}` },
+    { key: 'weekly', title: `🗓️ ${t('quests.weekly')} · ${t('quests.resets', { when: discordTimestamp(resets.weekly, 'R') })}` },
     { key: 'story', title: `📖 ${t('quests.story')}` },
     { key: 'contract', title: `📦 ${t('quests.contract')}` },
   ];
@@ -898,8 +925,8 @@ export async function questsView(
               quest.rewards.xp ? `${formatCompact(quest.rewards.xp, locale)} ✨` : '',
             ]
               .filter(Boolean)
-              .join(' • ');
-            return `**${quest.title}**\n${quest.description}\n${status} — ${rewards}`;
+              .join(' · ');
+            return `**${quest.title}**\n${quest.description}\n${status} · ${rewards}`;
           })
           .join('\n\n'),
       };
@@ -989,7 +1016,7 @@ function objectiveSummaryLine(
   locale: string,
 ): string {
   const check = objective.status === 'completed' ? '✅' : '';
-  return `**${t(`coop.objective.${objective.objectiveKey}.title`)}** ${check}\n${progressBar(objective.progress, objective.target, 10)} ${formatCompact(objective.progress, locale)}/${formatCompact(objective.target, locale)} — ${formatCompact(objective.rewardCoins, locale)} 🪙`;
+  return `**${t(`coop.objective.${objective.objectiveKey}.title`)}** ${check}\n${progressBar(objective.progress, objective.target, 10)} ${formatCompact(objective.progress, locale)}/${formatCompact(objective.target, locale)} · ${formatCompact(objective.rewardCoins, locale)} 🪙`;
 }
 
 export async function coopView(context: CommandContext): Promise<View> {
@@ -1011,7 +1038,7 @@ export async function coopView(context: CommandContext): Promise<View> {
                 publics
                   .map(
                     (coop) =>
-                      `${coop.emblem} **${coop.name}** \`[${coop.tag}]\` — lvl ${coop.level} • ${coop.memberCount}/${coop.memberLimit} ${t('common.members').toLowerCase()}`,
+                      `${coop.emblem} **${coop.name}** \`[${coop.tag}]\` · lvl ${coop.level} · ${coop.memberCount}/${coop.memberLimit} ${t('common.members').toLowerCase()}`,
                   )
                   .join('\n') || t('coop.no_public_coops'),
             },
@@ -1110,9 +1137,9 @@ export async function coopView(context: CommandContext): Promise<View> {
             .slice(0, 5)
             .map(
               (member, index) =>
-                `${index + 1}. **${member.username}** (${t(`common.role.${member.member.role}`)}) — ${formatCompact(member.member.weeklyContribution, locale)} 🪙`,
+                `${index + 1}. **${member.username}** (${t(`common.role.${member.member.role}`)}) · ${formatCompact(member.member.weeklyContribution, locale)} 🪙`,
             )
-            .join('\n') || '—',
+            .join('\n') || t('common.none'),
         inline: false,
       },
     ],
@@ -1166,7 +1193,7 @@ export async function productionView(context: CommandContext): Promise<View> {
       lines
         .map(
           (line) =>
-            `${line.buildingEmoji} **${line.recipeName}** ×${line.quantity} — ${
+            `${line.buildingEmoji} **${line.recipeName}** ×${line.quantity} · ${
               line.ready ? `✅ **${t('craft.ready_indicator')}**` : `⏳ ${discordTimestamp(line.finishAt, 'R')}`
             }\n   → ${line.outputQuantity}× ${line.outputName}`,
         )
@@ -1245,7 +1272,7 @@ export async function buildingsView(context: CommandContext): Promise<View> {
                   : ''
               }${building.nextTier.requiredLevel > player.level ? ` 🔒 ${t('common.level_abbr', { level: building.nextTier.requiredLevel })}` : ''}`
             : ` ✅ ${t('craft.max_tier_reached')}`;
-          return `${building.emoji} **${building.name}** — ${state}${next}`;
+          return `${building.emoji} **${building.name}** · ${state}${next}`;
         })
         .join('\n'),
     })),

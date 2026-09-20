@@ -142,7 +142,7 @@ const alerte: Command = {
                       name: alert.itemName,
                       symbol: alert.symbol,
                       threshold: formatCoins(alert.threshold, false, locale),
-                      price: alert.currentPrice === null ? '—' : formatCoins(alert.currentPrice, false, locale),
+                      price: alert.currentPrice === null ? '?' : formatCoins(alert.currentPrice, false, locale),
                       relative: discordTimestamp(alert.expiresAt, 'R'),
                       id: alert.shortId,
                     }),
@@ -181,7 +181,7 @@ const alerte: Command = {
           .slice(0, 25)
           .map((alert) => ({
             name: truncate(
-              `${alert.itemEmoji} ${alert.itemName} ${alert.symbol} ${formatNumber(alert.threshold, context.locale)} 🪙 — ${alert.shortId}`,
+              `${alert.itemEmoji} ${alert.itemName} ${alert.symbol} ${formatNumber(alert.threshold, context.locale)} 🪙 · ${alert.shortId}`,
               100,
             ),
             value: alert.shortId,
@@ -199,7 +199,7 @@ const alerte: Command = {
         .slice(0, 25)
         .map((row) => ({
           name: truncate(
-            `${row.emoji} ${row.name} — ${formatNumber(row.price, context.locale)} 🪙 (${row.trendLabel})`,
+            `${row.emoji} ${row.name} · ${formatNumber(row.price, context.locale)} 🪙 (${row.trendLabel})`,
             100,
           ),
           value: row.itemKey,

@@ -10,8 +10,8 @@
       "ore": "Minerais",
       "variant": "Variantes"
     },
-    "progress": "{emoji} **{label}** — **{discovered}/{total}** découvert(s)\n{bar} {percent} %",
-    "rare_line": "✨ {shiny} shiny • 🌟 {golden} dorée(s)",
+    "progress": "{emoji} **{label}** · **{discovered}/{total}** découvert(s)\n{bar} {percent} %",
+    "rare_line": "✨ Shiny : {shiny} · dorées : {golden}",
     "entry_found": "✅ {emoji} **{name}** · {dot} {rarity} · ×{count}{best}",
     "entry_hidden": "❔ **{name}** · {dot} {rarity} · {level}",
     "entry_variant_found": "✅ {emoji} **{name}** {icon} {variant} · {dot} {rarity} · ×{count}",
@@ -19,7 +19,7 @@
     "best_quality": " · {icon} {quality}",
     "best_variant": " · {icon} {variant}",
     "empty": "Rien à afficher sur cette page.",
-    "footer": "{discovered}/{total} entrées au total • page {page}/{pages}",
+    "footer": "{discovered}/{total} entrées au total · page {page}/{pages}",
     "hint": "Récoltez, collectez, pêchez, minez, fabriquez : chaque première fois remplit une case."
   },
   "animals": {
@@ -29,13 +29,13 @@
       "golden": "dorée"
     },
     "lucky_shiny": "✨ **SHINY !** Votre {name} scintille : ses produits sortent en qualité argent une fois sur deux.",
-    "lucky_golden": "🌟 **DORÉE !** Votre {name} est en or : production doublée, revente triplée. Le graal.",
+    "lucky_golden": "🌟 **DORÉE !** Votre {name} est en or : production doublée, revente triplée.",
     "breed_variant_line": "{icon} Le petit est **{variant}** !"
   },
   "render_alt": {
     "animals": {
       "variant_list": "Variantes rares : {animals}.",
-      "variant_entry": "{label} — {variant}"
+      "variant_entry": "{label} ({variant})"
     }
   }
 }

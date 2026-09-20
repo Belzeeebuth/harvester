@@ -9,7 +9,7 @@ const marcheNoir: Command = {
   cooldown: { seconds: 3 },
   data: new SlashCommandBuilder()
     .setName('black-market')
-    .setDescription('Rare, expensive, very limited stock — for high-level farmers with coins to burn')
+    .setDescription('Rare, expensive, very limited stock. For high-level farmers with coins to burn')
     .toJSON(),
 
   async execute(interaction, context): Promise<void> {

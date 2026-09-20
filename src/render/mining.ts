@@ -235,7 +235,7 @@ export async function renderMining(input: MiningRenderInput): Promise<Buffer> {
   ctx.font = font(22, 'bold');
   ctx.fillStyle = PALETTE.text;
   ctx.fillText(
-    t('mining.depth_field') + ` — ${input.depth} / ${input.maxDepth}`,
+    t('mining.depth_field') + ` · ${input.depth} / ${input.maxDepth}`,
     32,
     22,
   );

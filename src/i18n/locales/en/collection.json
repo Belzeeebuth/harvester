@@ -10,8 +10,8 @@
       "ore": "Ores",
       "variant": "Variants"
     },
-    "progress": "{emoji} **{label}** — **{discovered}/{total}** discovered\n{bar} {percent}%",
-    "rare_line": "✨ {shiny} shiny • 🌟 {golden} golden",
+    "progress": "{emoji} **{label}** · **{discovered}/{total}** discovered\n{bar} {percent}%",
+    "rare_line": "✨ Shiny: {shiny} · golden: {golden}",
     "entry_found": "✅ {emoji} **{name}** · {dot} {rarity} · ×{count}{best}",
     "entry_hidden": "❔ **{name}** · {dot} {rarity} · {level}",
     "entry_variant_found": "✅ {emoji} **{name}** {icon} {variant} · {dot} {rarity} · ×{count}",
@@ -19,7 +19,7 @@
     "best_quality": " · {icon} {quality}",
     "best_variant": " · {icon} {variant}",
     "empty": "Nothing to show on this page.",
-    "footer": "{discovered}/{total} entries overall • page {page}/{pages}",
+    "footer": "{discovered}/{total} entries overall · page {page}/{pages}",
     "hint": "Harvest, collect, fish, mine, craft: every first time fills a slot."
   },
   "animals": {
@@ -29,13 +29,13 @@
       "golden": "golden"
     },
     "lucky_shiny": "✨ **SHINY!** Your {name} sparkles: its produce comes out in silver quality half of the time.",
-    "lucky_golden": "🌟 **GOLDEN!** Your {name} is pure gold: double output, triple resale value. The holy grail.",
+    "lucky_golden": "🌟 **GOLDEN!** Your {name} is pure gold: double output, triple resale value.",
     "breed_variant_line": "{icon} The newborn is **{variant}**!"
   },
   "render_alt": {
     "animals": {
       "variant_list": "Rare variants: {animals}.",
-      "variant_entry": "{label} — {variant}"
+      "variant_entry": "{label} ({variant})"
     }
   }
 }

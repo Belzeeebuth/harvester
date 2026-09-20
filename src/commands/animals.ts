@@ -40,7 +40,7 @@ async function autocompleteOwnedAnimals(
       .slice(0, 25)
       .map((entry) => ({
         name: truncate(
-          `${entry.emoji} ${entry.animal.nickname ?? entry.name} — ${t('animals.autocomplete_status', {
+          `${entry.emoji} ${entry.animal.nickname ?? entry.name} · ${t('animals.autocomplete_status', {
             hunger: entry.animal.hunger,
             happiness: entry.animal.happiness,
           })}`,
@@ -192,7 +192,7 @@ const collecter: Command = {
     const embed = successEmbed(
       context.t('animals.collect_title'),
       result.lines
-        .map((line) => `${line.emoji} **${line.quantity}× ${line.itemName}** — ${line.name}`)
+        .map((line) => `${line.emoji} **${line.quantity}× ${line.itemName}** · ${line.name}`)
         .join('\n'),
     );
     embed.addFields({
@@ -247,7 +247,7 @@ const caresser: Command = {
   cooldown: { seconds: 2 },
   data: new SlashCommandBuilder()
     .setName('pet')
-    .setDescription('Pet an animal — happier means more output')
+    .setDescription('Pet an animal: happier animals produce more')
     .addStringOption((option) =>
       option.setName('animal').setDescription("The animal to pet").setRequired(true).setAutocomplete(true),
     )

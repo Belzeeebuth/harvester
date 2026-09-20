@@ -23,11 +23,11 @@
       "plot_pest": "parcelle {slot} ({crop}, {pest})",
       "more": "et {count} autre(s)",
       "animals": "{count} animal(aux) en pied de page.",
-      "buildings": "{count} bâtiment(s) autour du champ.",
+      "buildings": "{count} bâtiment(s) sur la ferme.",
       "pet": "Compagnon équipé : {pet}."
     },
     "profile": {
-      "header": "Profil de {name} — {title}.",
+      "header": "Profil de {name} : {title}.",
       "prestige": "Prestige {rank}.",
       "coop": "Coopérative [{tag}] {name}, niveau {level}.",
       "level": "Niveau {level}, {current} / {needed} XP.",
@@ -49,7 +49,7 @@
       "no_history": "Aucun historique : la courbe ne montre que le prix actuel."
     },
     "leaderboard": {
-      "header": "Classement — {title} ({scope}).",
+      "header": "Classement : {title} ({scope}).",
       "entries": "Podium et suivants : {entries}.",
       "entry": "#{rank} {name}, {score} {unit}",
       "entry_extra": "#{rank} {name}, {score} {unit} ({extra})",
@@ -66,7 +66,7 @@
       "locked": "{count} palier(s) hors de portée, assombris."
     },
     "animals": {
-      "header": "Basse-cour de {name} — {season}, {weather}.",
+      "header": "Basse-cour de {name}. {season}, {weather}.",
       "totals": "{alive} animal(aux), {hungry} affamé(s), {sick} malade(s), {ready} à collecter.",
       "no_building": "Aucun bâtiment d'élevage : un panneau invite à construire un poulailler.",
       "building": "{name} (palier {tier}), {used} / {capacity} : {animals}.",

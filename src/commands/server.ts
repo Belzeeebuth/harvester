@@ -39,8 +39,8 @@ const BOT_CHANNEL_PERMISSIONS = [
   PermissionFlagsBits.EmbedLinks,
 ] as const;
 
-function channelMention(channelId: string | null | undefined): string {
-  return channelId ? `<#${channelId}>` : '—';
+function channelMention(channelId: string | null | undefined, none = ''): string {
+  return channelId ? `<#${channelId}>` : none;
 }
 
 const server: Command = {
@@ -224,7 +224,7 @@ async function showStatus(interaction: GuildInteraction, context: CommandContext
               .map(([labelKey, channelId]) =>
                 context.t('server.status_channel_line', {
                   label: context.t(labelKey),
-                  channel: channelMention(channelId),
+                  channel: channelMention(channelId, context.t('common.none')),
                 }),
               )
               .join('\n'),

@@ -1,18 +1,18 @@
 {
   "$comment": "Farmer's almanac (/almanac): free world state, paid forecast for tomorrow. Fragment merged with en.json at load time; same key tree as fr/almanac.json.",
   "almanac": {
-    "title": "📖 Farmer's almanac — {day}",
+    "title": "📖 Farmer's almanac · {day}",
     "today_field": "🌤️ Today",
-    "today_value": "{emoji} **{label}** — {temperature} °C\n{description}",
+    "today_value": "{emoji} **{label}** · {temperature} °C\n{description}",
     "season_field": "🗓️ Season",
-    "season_value": "{emoji} **{name}** (year {year}) — {bar} {percent}%\n**{count} day(s)** left before {nextEmoji} **{nextName}** ({relative}).",
+    "season_value": "{emoji} **{name}** (year {year}) · {bar} {percent}%\n**{count} day(s)** left before {nextEmoji} {nextName} ({relative}).",
     "events_field": "🎪 Active events",
     "events_none": "No event running right now.",
-    "events_line": "• **{name}** — {description}",
+    "events_line": "• **{name}**: {description}",
     "forecast_field": "🔮 Tomorrow ({day})",
-    "forecast_locked": "Sealed forecast. The almanac reveals it for **{price}** — exact, no margin of error, readable until midnight without paying again.",
+    "forecast_locked": "Sealed forecast. The almanac reveals it for **{price}**: exact, no margin of error, and readable until midnight without paying again.",
     "forecast_unaffordable": "You are **{missing}** short of buying it.",
-    "forecast_value": "{emoji} **{label}** — {temperature} °C\n{description}\nReadable until {relative}.",
+    "forecast_value": "{emoji} **{label}** · {temperature} °C\n{description}\nReadable until {relative}.",
     "tips_field": "💡 Almanac tip",
     "tip": {
       "free_watering": "🌧️ Free watering tomorrow: plant tonight and save your water.",
@@ -28,7 +28,7 @@
     },
     "buy_button": "Buy the forecast ({price})",
     "bought_title": "📖 Forecast purchased",
-    "bought_body": "{price} charged — balance: {balance}.\n{emoji} **{label}** — {temperature} °C\n{description}\n\nRead it again in `/almanac` until {relative}.",
+    "bought_body": "{price} charged, balance: {balance}.\n{emoji} **{label}** · {temperature} °C\n{description}\n\nRead it again in `/almanac` until {relative}.",
     "already_owned_title": "📖 Forecast already purchased",
     "already_owned_body": "You already own tomorrow's forecast: nothing was charged.",
     "footer": "The almanac is personal: it alone knows tomorrow."

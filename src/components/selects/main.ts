@@ -43,6 +43,11 @@ const shopBuy: SelectHandler = {
       return;
     }
 
+    // Le menu liste aussi les articles verrouillés ou épuisés (voir
+    // `shopChoices`) : on les refuse ici, avant de demander une quantité.
+    const entry = await marketService.findShopEntry(itemKey, context.now, context.locale);
+    if (entry) marketService.assertPurchasable(context.player, entry);
+
     // Une quantité personnalisée est demandée par modal : plus souple qu'une
     // liste figée de boutons 1/5/10.
     await interaction.showModal(

@@ -147,7 +147,7 @@ const succes: Command = {
           ? '✅'
           : context.t('progression.achievements_to_claim')
         : `${progressBar(progress, target, 8)} ${formatCompact(progress, context.locale)}/${formatCompact(target, context.locale)}`;
-      return `${entry.icon} **${entry.name}** — ${status}\n   *${entry.description}*`;
+      return `${entry.icon} **${entry.name}** · ${status}\n   *${entry.description}*`;
     });
 
     await interaction.editReply({
@@ -223,7 +223,7 @@ const passe: Command = {
             free.items ? describeItems(free.items, context.locale) : '',
           ]
             .filter(Boolean)
-            .join(' • '),
+            .join(' · '),
         });
       });
 

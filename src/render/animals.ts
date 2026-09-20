@@ -232,7 +232,7 @@ export async function renderAnimals(input: AnimalsRenderInput): Promise<Buffer> 
   ctx.font = font(14);
   ctx.fillStyle = PALETTE.textMuted;
   ctx.fillText(
-    `${t(`world.season.${input.season}`)} • ${weatherLabel === weatherKey ? input.weather : weatherLabel}`,
+    `${t(`world.season.${input.season}`)} · ${weatherLabel === weatherKey ? input.weather : weatherLabel}`,
     80,
     headerY + 36,
   );
@@ -356,7 +356,7 @@ async function drawPen(ctx: SKRSContext2D, options: PenOptions): Promise<number>
   ctx.fillStyle = building.used >= building.capacity ? PALETTE.gold : PALETTE.text;
   ctx.fillText(occupancy, chipX + 8, cell.y + 13);
 
-  const name = `${building.name} — ${t('craft.tier_label', { tier: building.tier })}`;
+  const name = `${building.name} · ${t('craft.tier_label', { tier: building.tier })}`;
   const nameWidth = chipX - (cell.x + 12 + iconSize + 8) - 8;
   ctx.font = font(14, 'bold');
   ctx.fillStyle = PALETTE.text;

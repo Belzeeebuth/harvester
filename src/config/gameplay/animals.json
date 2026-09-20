@@ -397,8 +397,8 @@
       "accent": "#d97a90",
       "accentDark": "#b05a70"
     },
-    "description": "Déniche une truffe sauvage toutes les 6 h — sans occuper de parcelle.",
-    "descriptionEn": "Digs up a wild truffle every 6 h — without using a plot.",
+    "description": "Déniche une truffe sauvage toutes les 6 h, sans occuper de parcelle.",
+    "descriptionEn": "Digs up a wild truffle every 6 h, without using a plot.",
     "sortOrder": 80
   },
   {

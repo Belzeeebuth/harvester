@@ -2,12 +2,12 @@
   "$comment": "Fragment /account : export et suppression de compte (RGPD). Fusionné avec fr.json au chargement.",
   "account": {
     "export_title": "📦 Export de vos données",
-    "export_body": "Voici tout ce que Harvester conserve à votre sujet, au format JSON : profil, réglages, ferme et parcelles, inventaire, animaux, bâtiments, banque, progression, compagnons, coopérative, intégrations, hôtel des ventes et les {transactions} dernières opérations du journal.",
+    "export_body": "Tout ce que Harvester conserve à votre sujet, au format JSON : profil, réglages, ferme et parcelles, inventaire, animaux, bâtiments, banque, progression, compagnons, coopérative, intégrations, hôtel des ventes et les {transactions} dernières opérations du journal.",
     "export_truncated": "⚠️ Sections vidées pour respecter la taille maximale du fichier : {sections}.",
-    "export_privacy": "Ce message n'est visible que par vous. Les clés d'API et les secrets de webhook n'y figurent jamais — seuls leurs préfixes et adresses. Un nouvel export est possible dans une heure.",
+    "export_privacy": "Ce message n'est visible que par vous. Les clés d'API et les secrets de webhook n'y figurent jamais : seuls leurs préfixes et leurs adresses. Un nouvel export est possible dans une heure.",
     "delete_title": "⚠️ Supprimer votre compte ?",
     "delete_body": "Cette action est **irréversible**. Votre ferme, vos parcelles, vos animaux, votre inventaire, votre progression, vos pièces et vos gemmes seront définitivement perdus. Pensez à `/account export` d'abord si vous voulez en garder une copie.",
-    "delete_effects": "Ce qui sera fait immédiatement :\n• votre pseudo est remplacé par un identifiant anonyme, nom d'affichage et avatar effacés ;\n• vos réglages sont neutralisés — plus aucune notification, ferme privée ;\n• vos clés d'API sont révoquées et vos webhooks supprimés ;\n• vos ordres d'achat permanents sont annulés ;\n• vous quittez votre coopérative.",
+    "delete_effects": "Ce qui sera fait immédiatement :\n• Votre pseudo est remplacé par un identifiant anonyme, nom d'affichage et avatar effacés.\n• Vos réglages sont neutralisés : plus aucune notification, ferme privée.\n• Vos clés d'API sont révoquées et vos webhooks supprimés.\n• Vos ordres d'achat permanents sont annulés.\n• Vous quittez votre coopérative.",
     "delete_keeps": "Le journal comptable (vos transactions) est conservé pour l'audit de l'économie du jeu, rattaché à un identifiant interne : il n'est ni public ni consultable en jeu.",
     "delete_expires": "Ce bouton reste valable {minutes} minutes. Si vous revenez un jour, `/start` créera une ferme toute neuve.",
     "delete_confirm_button": "Supprimer définitivement",
@@ -23,9 +23,9 @@
     "account": {
       "blocked": "Impossible de supprimer votre compte pour l'instant. Réglez d'abord :\n• {reasons}",
       "blocked_hint": "Relancez `/account delete` ensuite.",
-      "blocker_listings": "{count} annonce(s) active(s) à l'hôtel des ventes — `/auction cancel`, ou attendez leur clôture",
-      "blocker_trades": "{count} échange(s) en cours — annulez-les depuis le message d'échange",
-      "blocker_coop_owner": "vous dirigez la coopérative {name} — transmettez la direction avec `/coop promote`",
+      "blocker_listings": "{count} annonce(s) active(s) à l'hôtel des ventes : `/auction cancel`, ou attendez leur clôture",
+      "blocker_trades": "{count} échange(s) en cours : annulez-les depuis le message d'échange",
+      "blocker_coop_owner": "vous dirigez la coopérative {name} : transmettez la direction avec `/coop promote`",
       "already_deleted": "Ce compte est déjà supprimé."
     }
   }

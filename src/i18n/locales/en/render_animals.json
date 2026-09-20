@@ -4,7 +4,7 @@
     "animals": {
       "title": "{name}'s livestock",
       "capacity": "{used} / {capacity} slots",
-      "no_building": "No livestock building yet — build a coop with /buildings",
+      "no_building": "No livestock building yet. Build a coop with /buildings",
       "alive": "{count} animal(s)",
       "hungry": "{count} hungry",
       "sick": "{count} sick",

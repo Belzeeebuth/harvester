@@ -25,7 +25,7 @@ const meteo: Command = {
     await interaction.editReply({
       embeds: [
         baseEmbed({
-          title: `${weather.emoji} ${weather.label} — ${weather.temperature} °C`,
+          title: `${weather.emoji} ${weather.label} · ${weather.temperature} °C`,
           description: weather.description,
           color: weather.damageChance > 0 ? COLORS.warning : COLORS.info,
           fields: [
@@ -120,14 +120,14 @@ const saison: Command = {
             {
               name: context.t('world.season_crops_field'),
               value: truncate(
-                inSeason.map((crop) => `${crop.emoji} ${crop.name}`).join(' • ') || '—',
+                inSeason.map((crop) => `${crop.emoji} ${crop.name}`).join(' · ') || context.t('common.none'),
                 1000,
               ),
             },
             {
               name: context.t('world.season_coming_field'),
               value: truncate(
-                comingSoon.map((crop) => `${crop.emoji} ${crop.name}`).join(' • ') || '—',
+                comingSoon.map((crop) => `${crop.emoji} ${crop.name}`).join(' · ') || context.t('common.none'),
                 1000,
               ),
             },
@@ -235,8 +235,8 @@ const evenement: Command = {
                         : '',
                     ]
                       .filter(Boolean)
-                      .join(' • ');
-                    return `${claimed ? '✅' : (progress?.points ?? 0) >= tier.points ? '🎁' : '🔒'} **${tier.points} pts** — ${rewards}`;
+                      .join(' · ');
+                    return `${claimed ? '✅' : (progress?.points ?? 0) >= tier.points ? '🎁' : '🔒'} **${tier.points} pts** · ${rewards}`;
                   })
                   .join('\n') || context.t('world.event_no_tier'),
             },

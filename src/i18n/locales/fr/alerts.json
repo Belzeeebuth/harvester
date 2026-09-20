@@ -2,13 +2,13 @@
   "$comment": "Alertes de prix (/alert). Fragment fusionné avec fr.json au chargement ; même arborescence que en/alerts.json.",
   "alerts": {
     "created_title": "🔔 Alerte de prix créée",
-    "created_body": "{emoji} **{name}** {symbol} {threshold}\nPrix actuel : {price} • expire {relative}\nIdentifiant : `{id}`",
+    "created_body": "{emoji} **{name}** {symbol} {threshold}\nPrix actuel : {price} · expire {relative}\nIdentifiant : `{id}`",
     "created_already_met": "ℹ️ Le prix remplit déjà cette condition : l'alerte partira à la prochaine mise à jour du marché ({when}).",
     "created_footer": "Vous recevrez un message privé dès que le marché franchira ce seuil.",
     "list_title": "🔔 Vos alertes de prix",
-    "list_line": "{emoji} **{name}** {symbol} {threshold} — actuel : {price} — expire {relative}\n`{id}`",
+    "list_line": "{emoji} **{name}** {symbol} {threshold} · actuel : {price} · expire {relative}\n`{id}`",
     "list_empty": "Aucune alerte active. Créez-en une avec `/alert create`.",
-    "list_footer": "{count}/{max} alertes • prix du marché, hors qualité et bonus d'événement",
+    "list_footer": "{count}/{max} alertes · prix du marché, hors qualité et bonus d'événement",
     "deleted_title": "🔕 Alerte supprimée",
     "deleted_body": "{emoji} **{name}** {symbol} {threshold} ne vous préviendra plus."
   },
@@ -23,7 +23,7 @@
   },
   "notifications": {
     "price_alert_title": "🔔 Alerte de prix",
-    "price_alert_above_body": "{emoji} **{item}** est monté à {price} 🪙, au-dessus de votre seuil de {threshold} 🪙. C'est le moment de vendre : `/sell` ou `/auction sell`.",
-    "price_alert_below_body": "{emoji} **{item}** est descendu à {price} 🪙, sous votre seuil de {threshold} 🪙. Bon moment pour acheter à l'hôtel des ventes : `/auction list`."
+    "price_alert_above_body": "{emoji} **{item}** est monté à {price} 🪙, au-dessus de votre seuil de {threshold} 🪙. Pour vendre : `/sell` ou `/auction sell`.",
+    "price_alert_below_body": "{emoji} **{item}** est descendu à {price} 🪙, sous votre seuil de {threshold} 🪙. Pour acheter à l'hôtel des ventes : `/auction list`."
   }
 }
