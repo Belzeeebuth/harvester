@@ -531,7 +531,7 @@ export async function matchStandingOrders(limit = 50): Promise<number> {
                 params: { quantity: order.totalQuantity },
               },
               dedupeKey: `order-filled:${order.id}`,
-            });
+            }, tx);
           }
 
           return true;
@@ -937,7 +937,7 @@ export async function offerItem(
     });
   }
 
-  return withTransaction(async (tx) => {
+  await withTransaction(async (tx) => {
     const trade = await tradeRepo.lockTrade(tx, input.tradeId);
     if (!trade) {
       throw gameError('not_found', 'Trade not found.', { i18nKey: 'errors.trade.not_found' });
@@ -982,9 +982,10 @@ export async function offerItem(
       tx,
     );
     await tradeRepo.bumpTradeRevision(input.tradeId, tx);
-
-    return getTrade(input.tradeId);
   });
+  // Relu APRÈS la validation : `getTrade` passe par le pool, une autre
+  // connexion qui ne voit pas encore les écritures de `tx` (READ COMMITTED).
+  return getTrade(input.tradeId);
 }
 
 export async function offerCoins(
@@ -996,7 +997,7 @@ export async function offerCoins(
     throw gameError('quantity_invalid', 'Invalid amount.', { i18nKey: 'errors.quantity_invalid' });
   }
 
-  return withTransaction(async (tx) => {
+  await withTransaction(async (tx) => {
     const trade = await tradeRepo.lockTrade(tx, input.tradeId);
     if (!trade) {
       throw gameError('not_found', 'Trade not found.', { i18nKey: 'errors.trade.not_found' });
@@ -1019,9 +1020,10 @@ export async function offerCoins(
       .set(isInitiator ? { initiatorCoins: input.amount } : { partnerCoins: input.amount })
       .where((await import('drizzle-orm')).eq((await import('../db/schema')).trades.id, input.tradeId));
     await tradeRepo.bumpTradeRevision(input.tradeId, tx);
-
-    return getTrade(input.tradeId);
   });
+  // Relu APRÈS la validation : `getTrade` passe par le pool, une autre
+  // connexion qui ne voit pas encore les écritures de `tx` (READ COMMITTED).
+  return getTrade(input.tradeId);
 }
 
 /**

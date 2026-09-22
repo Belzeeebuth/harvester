@@ -63,8 +63,8 @@ describe('enchères : remboursement unique de la mise détrônée', () => {
     await helpers.resetDatabase();
     await helpers.resetRedis();
     seller = await helpers.createTestPlayer('vendeur');
-    alice = await helpers.createTestPlayer('alice');
-    bob = await helpers.createTestPlayer('bob');
+    alice = await helpers.createTrader('alice');
+    bob = await helpers.createTrader('bob');
     await helpers.grantCoins(alice.id, 500_000);
     await helpers.grantCoins(bob.id, 500_000);
   });

@@ -9,7 +9,7 @@ import * as tradeService from '../../src/services/trade.service';
 import type { PlayerContext } from '../../src/types';
 import {
   coinsOf,
-  createTestPlayer,
+  createTrader,
   expectLedgerBalanced,
   grantCoins,
   resetDatabase,
@@ -86,9 +86,9 @@ describe('enchères', () => {
   beforeEach(async () => {
     await resetDatabase();
     await resetRedis();
-    seller = await createTestPlayer('vendeur');
-    alice = await createTestPlayer('alice');
-    bob = await createTestPlayer('bob');
+    seller = await createTrader('vendeur');
+    alice = await createTrader('alice');
+    bob = await createTrader('bob');
     await grantCoins(alice.id, 500_000);
     await grantCoins(bob.id, 500_000);
   });

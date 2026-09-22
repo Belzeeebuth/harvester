@@ -13,7 +13,7 @@
 
 | Composant | Choix | Version installée |
 |---|---|---|
-| Exécution | Node.js (`engines: >=20.11`) | 20 LTS |
+| Exécution | Node.js (`engines: >=22.19`) | 22 LTS |
 | Langage | TypeScript `strict` + `noUncheckedIndexedAccess` | 5.9 |
 | Discord | discord.js | 14.27 |
 | Base | PostgreSQL | 16 |

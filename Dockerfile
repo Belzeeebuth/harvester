@@ -5,13 +5,13 @@
 # =============================================================================
 
 # ---------- Étape 1 : dépendances de build ----------------------------------
-FROM node:20-bookworm-slim AS deps
+FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund
 
 # ---------- Étape 2 : compilation -------------------------------------------
-FROM node:20-bookworm-slim AS build
+FROM node:22-bookworm-slim AS build
 
 # Les MÊMES polices que l'image finale (étape 4). `npm run test` dessine ici
 # pour de vrai : sans police, `measureText` renvoie 0 et `fillText` ne pose
@@ -33,13 +33,13 @@ COPY . .
 RUN npm run build && npm run test
 
 # ---------- Étape 3 : dépendances de production seulement --------------------
-FROM node:20-bookworm-slim AS prod-deps
+FROM node:22-bookworm-slim AS prod-deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
 # ---------- Étape 4 : image finale ------------------------------------------
-FROM node:20-bookworm-slim AS runtime
+FROM node:22-bookworm-slim AS runtime
 
 # `fonts-noto-color-emoji` : @napi-rs/canvas dessine déjà tous les indicateurs
 # critiques en vectoriel, mais cette police permet d'afficher de vrais emoji
@@ -91,7 +91,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
 # variable, or le fichier lancé dépend de HARVESTER_ENTRYPOINT. `exec`
 # remplace le shell par Node, qui reste donc PID 1 : SIGTERM lui arrive
 # directement et l'arrêt propre de src/index.ts est intact — c'est ce qui rend
-# `dumb-init` toujours inutile (Node 20 gère SIGTERM correctement). Une valeur
+# `dumb-init` toujours inutile (Node gère SIGTERM correctement). Une valeur
 # inconnue est refusée avec un message explicite plutôt que de laisser Node
 # tourner en boucle de redémarrage sur un « Cannot find module ».
 # `docker compose run --rm bot npm run db:migrate` remplace ce CMD : inchangé.

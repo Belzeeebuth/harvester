@@ -65,7 +65,7 @@ describe('ordres d\'achat permanents', () => {
     await helpers.resetDatabase();
     await helpers.resetRedis();
     seller = await helpers.createTestPlayer('vendeur');
-    buyer = await helpers.createTestPlayer('acheteur');
+    buyer = await helpers.createTrader('acheteur');
     await helpers.grantCoins(buyer.id, 100_000);
   });
 

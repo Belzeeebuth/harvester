@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { expect } from 'vitest';
+import { balance } from '../../src/config';
 import { getDb, withRawClient, withTransaction } from '../../src/db/client';
 import { getRedis } from '../../src/db/redis';
 import * as economyRepo from '../../src/repositories/economy.repo';
@@ -78,6 +79,17 @@ export async function createTestPlayer(username = 'joueur'): Promise<PlayerConte
   });
   if (!result) throw new Error('création du joueur de test impossible');
   return result.player;
+}
+
+/**
+ * Joueur au niveau `trade.minLevel` : l'HDV (achat, enchère, ordre permanent)
+ * l'exige côté acheteur depuis 66a7dfa. Le contexte est RECHARGÉ, c'est lui
+ * que les services lisent.
+ */
+export async function createTrader(username = 'joueur'): Promise<PlayerContext> {
+  const created = await createTestPlayer(username);
+  await setLevel(created.id, balance().trade.minLevel);
+  return reloadPlayer(created.discordId);
 }
 
 /** Crédite un joueur PAR LE JOURNAL, pour que l'invariant reste vrai au départ. */

@@ -62,8 +62,8 @@ Les partis pris qui structurent tout le reste :
 
 | Outil | Version | Note |
 |---|---|---|
-| Node.js | **20 LTS ou plus** | `node --version` |
-| npm | 10+ | fourni avec Node 20 |
+| Node.js | **22.19 ou plus** | `node --version` |
+| npm | 10+ | fourni avec Node 22 |
 | PostgreSQL | **16** | ou le service Docker fourni |
 | Redis | **7** | ou le service Docker fourni |
 | Docker + Compose | récent | *optionnel mais recommandé* ; requis par `npm run test:integration` |
