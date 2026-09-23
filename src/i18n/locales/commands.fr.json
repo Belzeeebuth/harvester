@@ -167,7 +167,8 @@
   "fertilize/fertilizer#choice:fertilizer_basic": "💩 Engrais simple (+15 fertilité, +10 % rendement)",
   "fertilize/fertilizer#choice:fertilizer_quality": "🧪 Engrais de qualité (+25 fertilité, +15 % qualité)",
   "fertilize/fertilizer#choice:fertilizer_deluxe": "✨ Engrais suprême (+40 fertilité, +25 % rendement et qualité)",
-  "fertilize/plot#description": "Une parcelle précise",
+  "fertilize/fertilizer#choice:fertilizer_mythic": "🌟 Engrais mythique (+60 fertilité, +40 % rendement et qualité)",
+  "fertilize/plot#description": "Une parcelle précise (vide : TOUTES vos parcelles, un sac chacune)",
   "weed#description": "Désherber et récolter de quoi faire du compost",
   "weed/plot#description": "Une parcelle précise",
   "treat#description": "Traiter une parcelle infestée de nuisibles",
@@ -362,7 +363,7 @@
   "order/cancel/order#description": "Identifiant de l'ordre, affiché par /order list",
   "weather#description": "La météo du jour et ses effets sur vos cultures",
   "season#description": "Saison en cours, cultures favorisées, saison suivante",
-  "event#description": "Événement en cours et ses récompenses",
+  "event#description": "Événement en cours : paliers à réclamer et boutique",
   "encyclopedia#description": "Rechercher dans toute la base de données du jeu",
   "encyclopedia/term#description": "Culture, animal, objet, recette ou bâtiment"
 }

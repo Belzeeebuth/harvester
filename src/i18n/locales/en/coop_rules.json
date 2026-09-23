@@ -1,0 +1,9 @@
+{
+  "$comment": "Co-ops: cooldown after leaving voluntarily. Fragment merged with en.json at load time; same keys as fr/coop_rules.json.",
+  "errors": {
+    "coop": {
+      "leave_cooldown": "You left a co-op recently: you can join another one {when}.",
+      "target_leave_cooldown": "That player left a co-op recently: they can join another one {when}."
+    }
+  }
+}

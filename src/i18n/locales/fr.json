@@ -980,6 +980,7 @@
       "quest_not_found": "Quête introuvable.",
       "reward_already_claimed": "Cette récompense a déjà été perçue.",
       "quest_not_complete": "Cette quête n'est pas terminée.",
+      "quest_expired": "Cette quête a expiré, sa récompense n'est plus disponible.",
       "quest_progress_hint": "Progression : {progress}/{required}.",
       "reward_processing": "Récompense déjà en cours de traitement.",
       "only_daily_rerollable": "Seules les quêtes journalières peuvent être relancées.",

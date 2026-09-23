@@ -1,5 +1,5 @@
 import { balance as getBalance } from '../config';
-import { lockUserRow, withTransaction } from '../db/client';
+import { lockUserRow, withTransaction, type Transaction } from '../db/client';
 import {
   addCoopXp,
   buildCoopObjective,
@@ -19,6 +19,8 @@ import { dailyRng } from '../game/rng';
 import { gameError } from '../utils/errors';
 import { moduleLogger } from '../utils/logger';
 import * as socialRepo from '../repositories/social.repo';
+import * as systemRepo from '../repositories/system.repo';
+import { discordTimestamp } from '../utils/format';
 import * as economyService from './economy.service';
 import { currentWeekStart, dailyCycleKey } from '../utils/time';
 import type { PlayerContext } from '../types';
@@ -89,14 +91,56 @@ export async function getCoopInfo(coopId: string, viewerId?: string): Promise<Co
   };
 }
 
+/**
+ * Instant où le joueur pourra de nouveau rejoindre une coopérative, ou
+ * `undefined` s'il le peut déjà. `coop.leaveCooldownHours` n'était lu nulle
+ * part : on pouvait rejoindre une coop dont l'objectif venait d'être atteint,
+ * toucher sa part au passage du job, repartir, et recommencer ailleurs.
+ */
+export function coopRejoinAvailableAt(
+  lastLeaveAt: Date | undefined,
+  cooldownHours: number,
+  now: Date,
+): Date | undefined {
+  if (!lastLeaveAt || cooldownHours <= 0) return undefined;
+  const availableAt = new Date(lastLeaveAt.getTime() + cooldownHours * 3_600_000);
+  return availableAt.getTime() > now.getTime() ? availableAt : undefined;
+}
+
+/**
+ * Membres qui ont droit à la récompense d'un objectif : ceux arrivés AVANT
+ * qu'il soit atteint. Un objectif sans date d'achèvement (lignes anciennes)
+ * paie tous les membres, comme avant.
+ */
+export function objectivePayoutMembers<T extends { member: { joinedAt: Date } }>(
+  members: T[],
+  completedAt: Date | null,
+): T[] {
+  if (!completedAt) return members;
+  return members.filter((entry) => entry.member.joinedAt.getTime() <= completedAt.getTime());
+}
+
+async function assertMayJoin(
+  userId: string,
+  tx: Transaction,
+  i18nKey: 'errors.coop.leave_cooldown' | 'errors.coop.target_leave_cooldown',
+): Promise<void> {
+  const availableAt = coopRejoinAvailableAt(
+    await socialRepo.lastVoluntaryLeaveAt(userId, tx),
+    getBalance().coop.leaveCooldownHours,
+    new Date(),
+  );
+  if (!availableAt) return;
+  throw gameError('cooldown', 'You left a co-op recently.', {
+    i18nKey,
+    params: { when: discordTimestamp(availableAt, 'R') },
+    context: { availableAt: availableAt.toISOString() },
+  });
+}
+
 export async function requireMembership(userId: string) {
   const membership = await socialRepo.getMembership(userId);
-  if (!membership) {
-    throw gameError('coop_not_member', "You are not in a co-op.", {
-      i18nKey: 'coop.not_member',
-      suggestedCommand: 'coop',
-    });
-  }
+  if (!membership) throw notMemberError();
   return membership;
 }
 
@@ -196,6 +240,7 @@ export async function joinCoop(
         i18nKey: 'errors.coop.invite_only',
       });
     }
+    await assertMayJoin(player.id, tx, 'errors.coop.leave_cooldown');
     if (player.level < coop.joinRequirementLevel) {
       throw gameError(
         'level_too_low',
@@ -238,6 +283,7 @@ export async function inviteMember(
         i18nKey: 'errors.coop.target_already_member',
       });
     }
+    await assertMayJoin(targetUserId, tx, 'errors.coop.target_leave_cooldown');
     const joined = await socialRepo.joinCoop(membership.coop.id, targetUserId, tx);
     if (!joined) {
       throw gameError('coop_full', 'Your co-op is full.', { i18nKey: 'errors.coop.own_full' });
@@ -247,12 +293,18 @@ export async function inviteMember(
 }
 
 export async function leaveCoop(player: PlayerContext): Promise<{ coopName: string; dissolved: boolean }> {
-  const membership = await requireMembership(player.id);
-
   return withTransaction(async (tx) => {
     await lockUserRow(tx, player.id);
-    const coop = await socialRepo.lockCoop(tx, membership.coop.id);
+    // Appartenance lue DANS la transaction, puis relue sous le verrou de la
+    // coop : lue avant, elle pouvait être périmée (exclusion concurrente), et
+    // un membre exclu d'une coop à deux voyait « dissoute » et empochait
+    // toute la trésorerie.
+    const seen = await socialRepo.getMembership(player.id, tx);
+    if (!seen) throw notMemberError();
+    const coop = await socialRepo.lockCoop(tx, seen.coop.id);
     if (!coop) throw gameError('coop_not_found', 'Co-op not found.', { i18nKey: 'errors.coop.not_found' });
+    const membership = await socialRepo.getMembership(player.id, tx);
+    if (!membership || membership.member.guildId !== coop.id) throw notMemberError();
 
     // Le chef ne peut pas partir sans transmettre : sinon la trésorerie et les
     // objectifs se retrouveraient sans responsable.
@@ -264,13 +316,29 @@ export async function leaveCoop(player: PlayerContext): Promise<{ coopName: stri
       );
     }
 
-    await socialRepo.leaveCoop(coop.id, player.id, tx);
+    const removed = await socialRepo.removeMember(coop.id, player.id, tx);
+    if (!removed) throw notMemberError();
+
+    // Trace du départ volontaire : elle fait courir `coop.leaveCooldownHours`.
+    await systemRepo.audit(
+      {
+        actorId: player.id,
+        actorDiscordId: player.discordId,
+        action: socialRepo.COOP_LEAVE_AUDIT_ACTION,
+        targetType: 'coop',
+        targetId: coop.id,
+        payload: { name: coop.name, remaining: removed.remaining },
+        severity: 'info',
+      },
+      tx,
+    );
 
     // Dernier membre : la coopérative disparaît réellement. Sa trésorerie est
     // rendue au partant — c'est nécessairement lui qui l'a majoritairement
     // constituée, et la laisser dans une ligne orpheline la retirerait de
-    // l'économie sans la détruire ni la journaliser.
-    const dissolved = coop.memberCount <= 1;
+    // l'économie sans la détruire ni la journaliser. Le décompte est celui
+    // RENVOYÉ par la suppression, pas celui lu avant.
+    const dissolved = removed.remaining === 0;
     if (dissolved) {
       if (coop.treasury > 0) {
         await socialRepo.withdrawTreasury(
@@ -300,6 +368,13 @@ export async function leaveCoop(player: PlayerContext): Promise<{ coopName: stri
   });
 }
 
+function notMemberError() {
+  return gameError('coop_not_member', "You are not in a co-op.", {
+    i18nKey: 'coop.not_member',
+    suggestedCommand: 'coop',
+  });
+}
+
 export async function kickMember(
   player: PlayerContext,
   targetUserId: string,
@@ -318,6 +393,9 @@ export async function kickMember(
   }
 
   return withTransaction(async (tx) => {
+    // Même verrou que `leaveCoop` : une exclusion et un départ simultanés se
+    // succèdent au lieu de décider chacun sur un effectif périmé.
+    await socialRepo.lockCoop(tx, membership.coop.id);
     const target = await socialRepo.getMembership(targetUserId, tx);
     if (!target || target.member.guildId !== membership.coop.id) {
       throw gameError('coop_not_member', "That player is not in your co-op.", {
@@ -588,7 +666,12 @@ export async function distributeObjectiveRewards(limit = 20): Promise<number> {
       const claimed = await socialRepo.markObjectiveDistributed(objective.id, tx);
       if (!claimed) return;
 
-      const members = await socialRepo.listMembers(objective.guildId, tx);
+      // Seuls les membres présents quand l'objectif a été atteint sont payés :
+      // arriver après coup pour toucher une part n'est plus possible.
+      const members = objectivePayoutMembers(
+        await socialRepo.listMembers(objective.guildId, tx),
+        objective.completedAt,
+      );
       if (members.length === 0) return;
 
       // Pièces ET gemmes sont partagées. Les gemmes étaient versées EN ENTIER à

@@ -8,7 +8,7 @@ import { getConfig } from '../config';
 import { getRegistry } from '../framework/registry';
 import * as economyRepo from '../repositories/economy.repo';
 import { renderPoolStats } from '../render/pool';
-import { clockOffsetMs } from '../utils/discord-clock';
+import { clockOffsetEstimate, formatClockOffset } from '../utils/discord-clock';
 import { handleApiRequest } from './api';
 import { metricsRegistry, setRenderPoolGauges } from './metrics';
 import { moduleLogger } from '../utils/logger';
@@ -180,7 +180,9 @@ async function renderMetrics(client: Client): Promise<string> {
     `harvester_late_interactions_total ${metrics.lateInteractions}`,
     '# HELP harvester_clock_offset_ms Décalage estimé de l’horloge du serveur par rapport à Discord',
     '# TYPE harvester_clock_offset_ms gauge',
-    `harvester_clock_offset_ms ${Math.round(clockOffsetMs())}`,
+    // NaN faute d'interaction récente : une valeur périmée ferait croire à un
+    // décalage qui n'existe peut-être plus (ou masquerait un nouveau).
+    `harvester_clock_offset_ms ${formatClockOffset(clockOffsetEstimate())}`,
     '# HELP harvester_guilds Serveurs Discord connectés (ce shard)',
     '# TYPE harvester_guilds gauge',
     `harvester_guilds ${client.guilds.cache.size}`,

@@ -1,0 +1,11 @@
+{
+  "$comment": "Prestige: blockers before the reset. Fragment merged with en.json at load time; same keys as fr/prestige.json.",
+  "errors": {
+    "player": {
+      "prestige_blocked": "You cannot be reborn yet: some of your goods are outside your inventory and would escape the reset. First settle:\n• {reasons}",
+      "prestige_blocked_hint": "Then run `/prestige` again.",
+      "prestige_blocker_bids": "{count} bid(s) in progress at the auction house: wait for the listings to close",
+      "prestige_blocker_crafts": "{count} craft(s) in progress or ready: wait for them to finish, then collect them from `/production`"
+    }
+  }
+}

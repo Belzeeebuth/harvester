@@ -223,6 +223,15 @@ describe('calcul de récolte', () => {
     expect(winter).toBeLessThan(1);
   });
 
+  it('la serre annule la pénalité hors saison sans retirer le bonus de saison', () => {
+    const greenhouse = { ...NEUTRAL_MODIFIERS, seasonImmunity: true };
+    expect(seasonFactor(wheat, 'summer', greenhouse, balance)).toBe(
+      seasonFactor(wheat, 'summer', NEUTRAL_MODIFIERS, balance),
+    );
+    expect(seasonFactor(wheat, 'summer', greenhouse, balance)).toBeGreaterThan(1);
+    expect(seasonFactor(wheat, 'winter', greenhouse, balance)).toBe(1);
+  });
+
   it('produit toujours au moins une unité quand la culture est saine', () => {
     const result = computeHarvest({
       ...baseInput,

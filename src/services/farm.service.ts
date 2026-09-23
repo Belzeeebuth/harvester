@@ -272,6 +272,11 @@ export interface PlantResult {
  * l'ordre. C'est le comportement attendu par les joueurs qui enchaînent
  * `/plant blé quantité:9` et ne veulent pas cliquer neuf fois.
  */
+/** États de parcelle qui acceptent une plantation, si aucune culture n'y est. */
+function isFreeState(state: string): boolean {
+  return state === 'empty' || state === 'withered';
+}
+
 export async function plant(
   player: PlayerContext,
   input: { cropKey: string; slot?: number; quantity?: number; coopLevel?: number },
@@ -310,7 +315,7 @@ export async function plant(
     const targetSlots = input.slot
       ? [input.slot]
       : (await farmRepo.listPlots(player.farmId, tx))
-          .filter(({ plot, crop: planted }) => plot.state === 'empty' && !planted)
+          .filter(({ plot, crop: planted }) => isFreeState(plot.state) && !planted)
           .slice(0, Math.max(1, input.quantity ?? 1))
           .map(({ plot }) => plot.slot);
 
@@ -322,7 +327,13 @@ export async function plant(
     }
 
     const locked = await farmRepo.lockPlotsBySlots(tx, player.farmId, targetSlots);
-    const plantable = locked.filter((plot) => plot.state === 'empty');
+    // Une parcelle `withered` SANS culture est libre : séquelle d'une ancienne
+    // course avec le job de flétrissement, elle était refusée à jamais.
+    const occupied = await farmRepo.plotIdsWithCrop(
+      locked.filter((plot) => isFreeState(plot.state)).map((plot) => plot.id),
+      tx,
+    );
+    const plantable = locked.filter((plot) => isFreeState(plot.state) && !occupied.has(plot.id));
 
     if (plantable.length === 0) {
       const first = locked[0];
@@ -389,7 +400,17 @@ export async function plant(
       );
       await farmRepo.updatePlot(
         plot.id,
-        { state: 'planted', fertility: bankedFertility, fallowUntil: null },
+        // Les champs de nuisible repartent à zéro : un nuisible resté sur la
+        // parcelle (posé juste avant la récolte) aurait sinon frappé la
+        // nouvelle culture dès le passage suivant du job de conséquences.
+        {
+          state: 'planted',
+          fertility: bankedFertility,
+          fallowUntil: null,
+          pestType: null,
+          pestAppearedAt: null,
+          pestDeadlineAt: null,
+        },
         tx,
       );
     }

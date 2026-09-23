@@ -45,7 +45,16 @@ interface CastState {
   level: number;
   season: string;
   daytime: boolean;
+  /**
+   * Prise déjà tirée mais pas encore rangée : l'ajout à l'inventaire a échoué
+   * (entrepôt plein). Le lancer est remis en place avec elle pour que le joueur
+   * puisse la récupérer après avoir fait de la place, sans rejouer le ferrage.
+   */
+  caught?: { itemKey: string; quality: Quality };
 }
+
+/** Délai laissé pour récupérer une prise refusée faute de place. */
+const PENDING_CATCH_TTL_SECONDS = 15 * 60;
 
 function castKey(castId: string): string {
   return redisKey('fishing', 'cast', castId);
@@ -147,39 +156,59 @@ export async function resolveHook(
   const state = JSON.parse(raw) as CastState;
   if (state.userId !== player.id) return { outcome: 'expired' };
 
-  const outcome = scoreCastTiming(clickAt, state.biteAt, balance.fishing.windowMs);
-  if (outcome !== 'hit') return { outcome };
+  let picked: { itemKey: string; quality: Quality } | undefined = state.caught;
+  if (!picked) {
+    const outcome = scoreCastTiming(clickAt, state.biteAt, balance.fishing.windowMs);
+    if (outcome !== 'hit') return { outcome };
 
-  const eligible = eligibleFish(fishPool(config), {
-    level: state.level,
-    season: state.season,
-    daytime: state.daytime,
-  });
-  const rng = liveRng(`fish-catch:${player.id}:${castId}`);
-  const picked = rollFish(eligible, balance, rng);
-  if (!picked) return { outcome: 'hit' };
-
-  const accuracy = timingAccuracy(clickAt, state.biteAt, balance.fishing.windowMs);
-  const quality = rollFishQuality(accuracy, balance, rng);
-  const item = config.items.get(picked.key)!;
-  const value = scaleMoney(item.sellPrice, qualityMultiplier(quality, balance));
-
-  await withTransaction(async (tx) => {
-    await lockUserRow(tx, player.id);
-    await inventoryService.addItems(player.id, [{ itemKey: picked.key, quantity: 1, quality }], tx, {
-      discover: true,
+    const eligible = eligibleFish(fishPool(config), {
+      level: state.level,
+      season: state.season,
+      daytime: state.daytime,
     });
-    await trackAction(
-      { userId: player.id, coopId: player.coopId, level: player.level },
-      'catch_fish',
-      1,
-      { itemKey: picked.key, rarity: picked.rarity },
-      tx,
-    );
-  });
+    const rng = liveRng(`fish-catch:${player.id}:${castId}`);
+    const fish = rollFish(eligible, balance, rng);
+    if (!fish) return { outcome: 'hit' };
+
+    const accuracy = timingAccuracy(clickAt, state.biteAt, balance.fishing.windowMs);
+    picked = { itemKey: fish.key, quality: rollFishQuality(accuracy, balance, rng) };
+  }
+
+  const item = config.items.get(picked.itemKey);
+  if (!item) return { outcome: 'expired' };
+  const quality = picked.quality;
+  const value = scaleMoney(item.sellPrice, qualityMultiplier(quality, balance));
+  const caught = picked;
+
+  try {
+    await withTransaction(async (tx) => {
+      await lockUserRow(tx, player.id);
+      await inventoryService.addItems(player.id, [{ itemKey: caught.itemKey, quantity: 1, quality }], tx, {
+        discover: true,
+      });
+      await trackAction(
+        { userId: player.id, coopId: player.coopId, level: player.level },
+        'catch_fish',
+        1,
+        { itemKey: caught.itemKey, rarity: item.rarity },
+        tx,
+      );
+    });
+  } catch (error) {
+    // Le lancer a été consommé avant la transaction (anti double-clic) : sans
+    // cette remise en place, un entrepôt plein faisait perdre la prise ET
+    // l'énergie dépensée au lancer. La prise est conservée telle quelle.
+    const pending: CastState = { ...state, caught: { itemKey: caught.itemKey, quality } };
+    await redis
+      .set(castKey(castId), JSON.stringify(pending), 'EX', PENDING_CATCH_TTL_SECONDS)
+      .catch((redisError: unknown) =>
+        log.warn({ err: redisError }, 'impossible de remettre en place une prise refusée'),
+      );
+    throw error;
+  }
 
   return {
     outcome: 'hit',
-    fish: { itemKey: picked.key, name: item.name, emoji: item.emoji, quality, value },
+    fish: { itemKey: caught.itemKey, name: item.name, emoji: item.emoji, quality, value },
   };
 }

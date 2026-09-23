@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { getDb, type Executor } from '../db/client';
 import {
+  auditLogs,
   coopMembers,
   coopObjectives,
   coopTreasuryLog,
@@ -92,21 +93,57 @@ export async function joinCoop(
   return true;
 }
 
+/**
+ * Retire un membre et renvoie le nombre de membres RESTANTS, ou `undefined` si
+ * le joueur n'était (plus) membre de cette coopérative. Le décompte vient de
+ * l'UPDATE lui-même : c'est la seule valeur fiable pour décider d'une
+ * dissolution, un départ ou une exclusion concurrents ayant pu passer entre-temps.
+ */
+export async function removeMember(
+  coopId: string,
+  userId: string,
+  executor: Executor,
+): Promise<{ remaining: number } | undefined> {
+  const result = await executor
+    .delete(coopMembers)
+    .where(and(eq(coopMembers.guildId, coopId), eq(coopMembers.userId, userId)));
+  if ((result.rowCount ?? 0) === 0) return undefined;
+
+  const [row] = await executor
+    .update(coops)
+    .set({ memberCount: sql`GREATEST(${coops.memberCount} - 1, 0)`, updatedAt: new Date() })
+    .where(eq(coops.id, coopId))
+    .returning({ memberCount: coops.memberCount });
+  return { remaining: row?.memberCount ?? 0 };
+}
+
 export async function leaveCoop(
   coopId: string,
   userId: string,
   executor: Executor,
 ): Promise<boolean> {
-  const result = await executor
-    .delete(coopMembers)
-    .where(and(eq(coopMembers.guildId, coopId), eq(coopMembers.userId, userId)));
-  if ((result.rowCount ?? 0) === 0) return false;
+  return (await removeMember(coopId, userId, executor)) !== undefined;
+}
 
-  await executor
-    .update(coops)
-    .set({ memberCount: sql`GREATEST(${coops.memberCount} - 1, 0)`, updatedAt: new Date() })
-    .where(eq(coops.id, coopId));
-  return true;
+/** Action d'audit d'un départ volontaire : sert aussi au délai avant de rejoindre. */
+export const COOP_LEAVE_AUDIT_ACTION = 'coop_leave';
+
+/**
+ * Dernier départ VOLONTAIRE du joueur (`/coop leave`), lu dans le journal
+ * d'audit (index `actor_id, created_at`). Une exclusion n'y figure pas : elle
+ * n'est pas du fait du joueur et ne lui impose pas de délai.
+ */
+export async function lastVoluntaryLeaveAt(
+  userId: string,
+  executor: Executor = getDb(),
+): Promise<Date | undefined> {
+  const [row] = await executor
+    .select({ at: auditLogs.createdAt })
+    .from(auditLogs)
+    .where(and(eq(auditLogs.actorId, userId), eq(auditLogs.action, COOP_LEAVE_AUDIT_ACTION)))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(1);
+  return row?.at;
 }
 
 /**

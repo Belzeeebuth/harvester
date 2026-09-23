@@ -4,7 +4,7 @@ import * as progressionRepo from '../repositories/progression.repo';
 import * as socialRepo from '../repositories/social.repo';
 import { currentWeekStart, dailyCycleKey } from '../utils/time';
 import { moduleLogger } from '../utils/logger';
-import { getActiveEvents } from './world.service';
+import { eventOccurrenceKey, getActiveEvents } from './world.service';
 
 const log = moduleLogger('tracker');
 
@@ -129,6 +129,18 @@ export async function trackAction(
     eventPoints: 0,
   };
 
+  // Les quêtes du cycle doivent exister AVANT la progression : `progressQuests`
+  // ne fait que mettre à jour des lignes, il n'en crée aucune. Import dynamique :
+  // progression.service dépend d'economy.service, qui dépend de ce module.
+  // `ensureQuestsForAction` pose son propre point de reprise ; son échec ne
+  // coûte que l'assignation, jamais l'action du joueur.
+  try {
+    const { ensureQuestsForAction } = await import('./progression.service');
+    await ensureQuestsForAction(context, tx);
+  } catch (error) {
+    log.warn({ err: error, action, userId: context.userId }, 'assignation des quêtes impossible');
+  }
+
   // ⚠ POINT DE REPRISE OBLIGATOIRE.
   //
   // Cette fonction s'exécute DANS la transaction de l'action de jeu. En
@@ -228,7 +240,13 @@ async function trackWithin(
       if (action === 'harvest_any' && perHarvest > 0) points = perHarvest * amount;
       if (action === 'craft_item' && perCraft > 0) points = perCraft * amount;
       if (points > 0) {
-        await progressionRepo.addEventPoints(context.userId, event.key, points, tx);
+        await progressionRepo.addEventPoints(
+          context.userId,
+          event.key,
+          points,
+          tx,
+          eventOccurrenceKey(event),
+        );
         result.eventPoints += points;
       }
     }

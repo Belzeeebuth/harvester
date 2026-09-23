@@ -1,6 +1,6 @@
 import { balance as getBalance, getActiveSeasonPass, getConfig, reloadConfig } from '../config';
 import { env } from '../config/env';
-import { lockUserRow, withTransaction } from '../db/client';
+import { lockUserRow, withTransaction, type Transaction } from '../db/client';
 import { checkPrestigeEligibility, planPrestige, prestigeBadge } from '../game/prestige';
 import { gameError } from '../utils/errors';
 import { scaleMoney } from '../game/money';
@@ -166,6 +166,41 @@ export async function previewPrestige(player: PlayerContext) {
 }
 
 /**
+ * Refuse la renaissance tant que des biens sont en dépôt hors de l'inventaire
+ * (annonces, enchères, échanges, fabrications). La remise à zéro ne les voyait
+ * pas : annuler l'annonce ou récupérer la fabrication APRÈS la renaissance
+ * rendait les objets, contournant l'effacement de l'inventaire. Refuser plutôt
+ * qu'annuler d'office : le joueur garde la main sur ce qu'il récupère. La
+ * banque, elle, survit à la renaissance par conception et n'est pas concernée.
+ */
+async function assertNothingInEscrow(
+  player: Pick<PlayerContext, 'id' | 'locale'>,
+  tx: Transaction,
+): Promise<void> {
+  const blockers = await playerRepo.countPrestigeBlockers(player.id, tx);
+  const reasons: string[] = [];
+  if (blockers.listings > 0) {
+    reasons.push(translate(player.locale, 'errors.account.blocker_listings', { count: blockers.listings }));
+  }
+  if (blockers.bids > 0) {
+    reasons.push(translate(player.locale, 'errors.player.prestige_blocker_bids', { count: blockers.bids }));
+  }
+  if (blockers.trades > 0) {
+    reasons.push(translate(player.locale, 'errors.account.blocker_trades', { count: blockers.trades }));
+  }
+  if (blockers.crafts > 0) {
+    reasons.push(translate(player.locale, 'errors.player.prestige_blocker_crafts', { count: blockers.crafts }));
+  }
+  if (reasons.length === 0) return;
+  throw gameError('invalid_state', 'Settle your listings, bids, trades and crafts before prestige.', {
+    i18nKey: 'errors.player.prestige_blocked',
+    hintKey: 'errors.player.prestige_blocked_hint',
+    params: { reasons: reasons.join('\n• ') },
+    context: { blockers },
+  });
+}
+
+/**
  * Exécute la renaissance. Action IRRÉVERSIBLE, donc :
  *  - elle est toujours précédée d'un aperçu et d'une double confirmation ;
  *  - elle est journalisée dans l'audit ;
@@ -195,6 +230,7 @@ export async function doPrestige(player: PlayerContext): Promise<{
         i18nKey: 'errors.player_not_found',
       });
     }
+    await assertNothingInEscrow(player, tx);
     const schema = await import('../db/schema');
     const { eq, sql, gt, inArray } = await import('drizzle-orm');
 

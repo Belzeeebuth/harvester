@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 import { getDb, type Executor } from '../db/client';
 import { plantedCrops, plots } from '../db/schema';
 import { uuidv7 } from '../utils/uuid';
@@ -261,46 +261,153 @@ export async function findCropsReadyForNotification(
   return rows;
 }
 
-/** Cultures dépassées qui doivent faner (job de maintenance). */
+/**
+ * Cultures dépassées qui doivent faner (job de maintenance).
+ *
+ * UNE seule requête, qui verrouille d'abord la PARCELLE (même ordre que
+ * planter et récolter : parcelle puis culture) et saute celles qu'une action
+ * du joueur tient déjà. L'ancienne version lisait les cultures puis écrivait
+ * par identifiant sans condition : une récolte glissée entre les deux laissait
+ * une parcelle vide marquée `withered`, sans culture, que `plant()` refusait
+ * ensuite pour toujours. Ici, une culture supprimée ou replantée entre-temps
+ * n'est plus modifiée, et la parcelle ne change d'état que si SA culture a
+ * effectivement fané.
+ */
 export async function witherOverdueCrops(
   now: Date,
   limit: number,
   executor: Executor = getDb(),
 ): Promise<number> {
-  const overdue = await executor
-    .select({ id: plantedCrops.id, plotId: plantedCrops.plotId })
-    .from(plantedCrops)
+  const result = await executor.execute(sql`
+    WITH picked AS (
+      SELECT p.id AS plot_id, pc.id AS crop_id
+        FROM plots AS p
+        JOIN planted_crops AS pc ON pc.plot_id = p.id
+       WHERE pc.withered = false
+         AND pc.withers_at IS NOT NULL
+         AND pc.withers_at <= ${now}
+       LIMIT ${limit}
+         FOR UPDATE OF p SKIP LOCKED
+    ),
+    faded AS (
+      UPDATE planted_crops AS pc
+         SET withered = true, updated_at = ${now}
+        FROM picked
+       WHERE pc.id = picked.crop_id
+         AND pc.plot_id = picked.plot_id
+         AND pc.withered = false
+         AND pc.withers_at <= ${now}
+   RETURNING pc.plot_id
+    )
+    UPDATE plots AS p
+       SET state = 'withered', updated_at = ${now}
+      FROM faded
+     WHERE p.id = faded.plot_id
+ RETURNING p.id
+  `);
+  return result.rows.length;
+}
+
+/**
+ * Remet à « vide » les parcelles `withered` restées SANS culture.
+ *
+ * Séquelle de l'ancienne course entre le job de flétrissement et la récolte
+ * (voir `witherOverdueCrops`) : ces parcelles étaient comptées libres à
+ * l'affichage mais refusées par `plant()`. `plant()` les accepte désormais ;
+ * ce nettoyage rend en plus l'affichage cohérent. Une plantation concurrente
+ * tient le verrou de la parcelle et la fait passer à `planted` : la condition
+ * est réévaluée après son COMMIT et la ligne est alors laissée telle quelle.
+ */
+export async function repairOrphanWitheredPlots(
+  now: Date,
+  executor: Executor = getDb(),
+): Promise<number> {
+  const result = await executor
+    .update(plots)
+    .set({ state: 'empty', pestType: null, pestAppearedAt: null, pestDeadlineAt: null, updatedAt: now })
     .where(
       and(
-        eq(plantedCrops.withered, false),
-        isNotNull(plantedCrops.withersAt),
-        lte(plantedCrops.withersAt, now),
-      ),
-    )
-    .limit(limit);
-
-  if (overdue.length === 0) return 0;
-
-  await executor
-    .update(plantedCrops)
-    .set({ withered: true, updatedAt: now })
-    .where(
-      inArray(
-        plantedCrops.id,
-        overdue.map((row) => row.id),
+        eq(plots.state, 'withered'),
+        sql`NOT EXISTS (SELECT 1 FROM ${plantedCrops} WHERE ${plantedCrops.plotId} = ${plots.id})`,
       ),
     );
-  await executor
+  return result.rowCount ?? 0;
+}
+
+/** Verrouille une parcelle par identifiant (jobs de maintenance). */
+export async function lockPlotById(tx: Executor, plotId: string): Promise<PlotRow | undefined> {
+  const [row] = await tx.select().from(plots).where(eq(plots.id, plotId)).limit(1).for('update');
+  return row;
+}
+
+export async function getCropByPlotId(
+  plotId: string,
+  executor: Executor = getDb(),
+): Promise<PlantedCropRow | undefined> {
+  const [row] = await executor
+    .select()
+    .from(plantedCrops)
+    .where(eq(plantedCrops.plotId, plotId))
+    .limit(1);
+  return row;
+}
+
+/** Parcelles, parmi celles données, qui portent une culture (fanée ou non). */
+export async function plotIdsWithCrop(
+  plotIds: string[],
+  executor: Executor = getDb(),
+): Promise<Set<string>> {
+  if (plotIds.length === 0) return new Set();
+  const rows = await executor
+    .select({ plotId: plantedCrops.plotId })
+    .from(plantedCrops)
+    .where(inArray(plantedCrops.plotId, plotIds));
+  return new Set(rows.map((row) => row.plotId));
+}
+
+/**
+ * Pose un nuisible, seulement si la parcelle porte TOUJOURS une culture vivante
+ * et n'a pas déjà de nuisible. Sans ces conditions, une récolte faite entre la
+ * sélection du job et l'écriture recevait un nuisible sur une parcelle vide.
+ */
+export async function spawnPestIfStillPlanted(
+  plotId: string,
+  pest: { pestType: NonNullable<PlotRow['pestType']>; pestAppearedAt: Date; pestDeadlineAt: Date },
+  executor: Executor = getDb(),
+): Promise<boolean> {
+  const result = await executor
     .update(plots)
-    .set({ state: 'withered', updatedAt: now })
+    .set({ ...pest, updatedAt: new Date() })
     .where(
-      inArray(
-        plots.id,
-        overdue.map((row) => row.plotId),
+      and(
+        eq(plots.id, plotId),
+        eq(plots.state, 'planted'),
+        isNull(plots.pestType),
+        sql`EXISTS (SELECT 1 FROM ${plantedCrops} WHERE ${plantedCrops.plotId} = ${plots.id} AND ${plantedCrops.withered} = false)`,
       ),
     );
+  return (result.rowCount ?? 0) > 0;
+}
 
-  return overdue.length;
+/**
+ * Ajoute des dégâts à une culture encore vivante, en SQL : lire la pénalité
+ * puis écrire une valeur absolue écrasait les dégâts posés entre-temps.
+ */
+export async function addCropDamage(
+  cropId: string,
+  damage: number,
+  options: { wither?: boolean } = {},
+  executor: Executor = getDb(),
+): Promise<boolean> {
+  const result = await executor
+    .update(plantedCrops)
+    .set({
+      damagePenalty: sql`LEAST(1, ${plantedCrops.damagePenalty} + ${damage.toFixed(3)}::numeric)`,
+      ...(options.wither ? { withered: true } : {}),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(plantedCrops.id, cropId), eq(plantedCrops.withered, false)));
+  return (result.rowCount ?? 0) > 0;
 }
 
 /** Parcelles plantées éligibles à l'apparition d'un nuisible. */

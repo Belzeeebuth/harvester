@@ -8,7 +8,7 @@ import * as economyService from './economy.service';
 import * as inventoryService from './inventory.service';
 import { invalidateFarmModifiers } from './modifier-cache';
 import { consumeEnergy, getEnergy, getFarmModifiers, grantXp } from './player.service';
-import { grantPassXp, passXpFor, trackAction, type TrackResult } from './tracker.service';
+import { grantPassXp, mergeResults, passXpFor, trackAction, type TrackResult } from './tracker.service';
 import { getWorldState } from './world.service';
 import type { PlayerContext } from '../types';
 
@@ -293,6 +293,8 @@ export async function collectProduction(
     const lines: CollectCraftResult['lines'] = [];
     let xpTotal = 0;
     let craftedUnits = 0;
+    // Unités collectées par recette, pour le suivi des quêtes ciblées.
+    const craftedByRecipe = new Map<string, { recipeCategory: string; units: number }>();
 
     for (const entry of selected) {
       const recipe = config.recipes.get(entry.job.recipeKey);
@@ -325,6 +327,9 @@ export async function collectProduction(
 
       xpTotal += recipe.xpReward * entry.job.quantity;
       craftedUnits += entry.job.quantity;
+      const crafted = craftedByRecipe.get(recipe.key) ?? { recipeCategory: recipe.category, units: 0 };
+      crafted.units += entry.job.quantity;
+      craftedByRecipe.set(recipe.key, crafted);
       lines.push({
         recipeName: recipe.name,
         itemKey: recipe.outputItemKey,
@@ -344,13 +349,23 @@ export async function collectProduction(
     const xpResult = xpTotal > 0 ? await grantXp(player.id, xpTotal, tx) : null;
     await grantPassXp(player.id, passXpFor(xpTotal), tx);
 
-    const tracking = await trackAction(
-      { userId: player.id, coopId: player.coopId, level: player.level },
-      'craft_item',
-      craftedUnits,
-      {},
-      tx,
-    );
+    // Un suivi PAR RECETTE, avec sa clé et sa catégorie : une cible vide ne
+    // faisait jamais progresser les quêtes ciblées (`{ recipeKey: 'wine' }`,
+    // `{ recipeCategory: 'laiterie' }`), la dernière étape narrative comprise.
+    const trackContext = { userId: player.id, coopId: player.coopId, level: player.level };
+    const trackResults: TrackResult[] = [];
+    for (const [recipeKey, crafted] of craftedByRecipe) {
+      trackResults.push(
+        await trackAction(
+          trackContext,
+          'craft_item',
+          crafted.units,
+          { recipeKey, recipeCategory: crafted.recipeCategory },
+          tx,
+        ),
+      );
+    }
+    const tracking = mergeResults(trackResults);
 
     return {
       lines,

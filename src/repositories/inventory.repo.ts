@@ -44,11 +44,17 @@ export interface InventoryEntry {
 export async function totalQuantity(
   userId: string,
   executor: Executor = getDb(),
+  options: { excludeItemKeys?: readonly string[] } = {},
 ): Promise<number> {
+  const excluded = options.excludeItemKeys ?? [];
   const [row] = await executor
     .select({ total: sql<number>`COALESCE(SUM(${inventory.quantity}), 0)::int` })
     .from(inventory)
-    .where(eq(inventory.userId, userId));
+    .where(
+      excluded.length > 0
+        ? and(eq(inventory.userId, userId), notInArray(inventory.itemKey, [...excluded]))
+        : eq(inventory.userId, userId),
+    );
   return row?.total ?? 0;
 }
 

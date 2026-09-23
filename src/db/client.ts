@@ -101,9 +101,18 @@ export async function withTransaction<T>(fn: (tx: Transaction) => Promise<T>): P
 
 /**
  * Verrouille la ligne joueur pour la durée de la transaction.
- * `SELECT ... FOR UPDATE` : les autres transactions qui veulent le même joueur
- * attendent ici, ce qui rend impossible la course « lire solde → décider →
- * écrire solde ». Retourne `undefined` si le joueur n'existe pas.
+ * `SELECT ... FOR NO KEY UPDATE` : les autres transactions qui veulent le même
+ * joueur attendent ici, ce qui rend impossible la course « lire solde →
+ * décider → écrire solde ». Retourne `undefined` si le joueur n'existe pas.
+ *
+ * Pas `FOR UPDATE` : ce mode-là entre en conflit avec le `FOR KEY SHARE` que
+ * PostgreSQL pose pour vérifier chaque clé étrangère vers `users`. Tout INSERT
+ * dans une table qui référence le joueur (journal, notification, audit…) fait
+ * sur UNE AUTRE connexion du pool pendant la transaction attendait alors sa
+ * fin, c'est-à-dire le délai d'expiration de 15 s quand c'est la transaction
+ * elle-même qui attendait cet INSERT. `NO KEY UPDATE` sérialise toujours les
+ * transactions qui verrouillent le joueur, sans bloquer ces vérifications :
+ * nous ne modifions jamais `users.id`.
  */
 export async function lockUserRow(tx: Transaction, userId: string) {
   const [row] = await tx
@@ -117,7 +126,7 @@ export async function lockUserRow(tx: Transaction, userId: string) {
     })
     .from(schema.users)
     .where(eq(schema.users.id, userId))
-    .for('update');
+    .for('no key update');
   return row;
 }
 

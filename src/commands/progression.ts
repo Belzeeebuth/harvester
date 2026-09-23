@@ -2,6 +2,7 @@ import { ButtonStyle, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { COLORS, baseEmbed, button, linkButton, row, successEmbed } from '../framework/ui';
 import { safeReply } from '../framework/interaction';
 import { questsView } from '../framework/views';
+import * as progressionRepo from '../repositories/progression.repo';
 import * as progressionService from '../services/progression.service';
 import * as miscService from '../services/misc.service';
 import { describeItems } from '../services/inventory.service';
@@ -92,8 +93,11 @@ const rerollQuete: Command = {
       await interaction.respond([]);
       return;
     }
+    // Le VRAI niveau : si cette autocomplétion est la première à attribuer les
+    // quêtes du jour, un niveau 1 fixe tirerait le mauvais lot et la mauvaise échelle.
+    const level = (await progressionRepo.getUserLevel(context.playerId)) ?? 1;
     const quests = await progressionService.listQuests(
-      { id: context.playerId, level: 1 },
+      { id: context.playerId, level },
       { type: 'daily' },
     );
     await interaction.respond(

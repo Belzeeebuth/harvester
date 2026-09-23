@@ -1,0 +1,9 @@
+{
+  "$comment": "Coopératives : délai après un départ volontaire. Fragment fusionné avec fr.json au chargement ; mêmes clés que en/coop_rules.json.",
+  "errors": {
+    "coop": {
+      "leave_cooldown": "Vous avez quitté une coopérative récemment : vous pourrez en rejoindre une {when}.",
+      "target_leave_cooldown": "Ce joueur a quitté une coopérative récemment : il pourra en rejoindre une {when}."
+    }
+  }
+}

@@ -64,12 +64,31 @@ export async function getPage(
   };
 }
 
+/**
+ * Objets qui n'occupent pas de place dans l'entrepôt : les monnaies
+ * d'événement (jetons citrouille, flocons...). Ni vendables ni échangeables,
+ * elles ne pouvaient pas être évacuées ; les compter remplissait l'entrepôt et
+ * un entrepôt plein annule toute la récolte, qui en produit justement.
+ */
+export function capacityExemptItemKeys(): ReadonlySet<string> {
+  const keys = new Set<string>();
+  for (const event of getConfig().eventList) {
+    if (event.currencyItemKey) keys.add(event.currencyItemKey);
+    for (const shopItem of event.shopItems) {
+      if (shopItem.currencyItemKey) keys.add(shopItem.currencyItemKey);
+    }
+  }
+  return keys;
+}
+
 export async function getCapacity(
   userId: string,
   executor: Executor = getDb(),
 ): Promise<{ used: number; capacity: number; free: number }> {
   const [used, farm] = await Promise.all([
-    inventoryRepo.totalQuantity(userId, executor),
+    inventoryRepo.totalQuantity(userId, executor, {
+      excludeItemKeys: [...capacityExemptItemKeys()],
+    }),
     playerRepo.getFarmByUserId(userId, executor),
   ]);
   const capacity = farm?.warehouseCapacity ?? 0;
@@ -118,8 +137,13 @@ export async function addItems(
 
   for (const entry of positive) requireItem(entry.itemKey);
 
-  if (!options.allowOverflow) {
-    const total = positive.reduce((sum, entry) => sum + entry.quantity, 0);
+  // Les monnaies d'événement ne comptent pas : ni dans l'occupation, ni dans
+  // ce qui arrive (voir `capacityExemptItemKeys`).
+  const exempt = capacityExemptItemKeys();
+  const total = positive
+    .filter((entry) => !exempt.has(entry.itemKey))
+    .reduce((sum, entry) => sum + entry.quantity, 0);
+  if (!options.allowOverflow && total > 0) {
     const capacity = await getCapacity(userId, tx);
     if (total > capacity.free) {
       throw gameError(

@@ -321,10 +321,15 @@ const fertiliser: Command = {
           { name: '💩 Basic fertilizer (+15 fertility, +10% yield)', value: 'fertilizer_basic' },
           { name: '🧪 Quality fertilizer (+25 fertility, +15% quality)', value: 'fertilizer_quality' },
           { name: '✨ Deluxe fertilizer (+40 fertility, +25% yield and quality)', value: 'fertilizer_deluxe' },
+          { name: '🌟 Mythic fertilizer (+60 fertility, +40% yield and quality)', value: 'fertilizer_mythic' },
         ),
     )
     .addIntegerOption((option) =>
-      option.setName('plot').setDescription('A specific plot').setMinValue(1).setMaxValue(64),
+      option
+        .setName('plot')
+        .setDescription('A specific plot (leave empty to fertilize ALL your plots, one bag each)')
+        .setMinValue(1)
+        .setMaxValue(64),
     )
     .toJSON(),
 

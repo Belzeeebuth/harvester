@@ -27,10 +27,10 @@ const log = moduleLogger('progression');
 /**
  * Quêtes, récompense quotidienne, succès et passe saisonnier.
  *
- * L'assignation des quêtes est PARESSEUSE : elle a lieu la première fois que le
- * joueur ouvre `/quests` dans un nouveau cycle, pas via un job qui parcourrait
- * 100 000 joueurs à minuit. Un joueur inactif ne coûte donc rien, et la charge
- * s'étale naturellement sur la journée.
+ * L'assignation des quêtes est PARESSEUSE : elle a lieu à la première action
+ * suivie (`trackAction`) ou à la première ouverture de `/quests` du cycle, pas
+ * via un job qui parcourrait 100 000 joueurs à minuit. Un joueur inactif ne
+ * coûte donc rien, et la charge s'étale naturellement sur la journée.
  */
 
 export interface QuestView {
@@ -85,6 +85,80 @@ function scaleAmount(quantity: number, level: number): number {
   return Math.max(1, Math.round(quantity * factor));
 }
 
+/**
+ * Objectifs dont la cadence ne dépend pas de l'effort du joueur : une
+ * réclamation `/daily` par jour, des aides plafonnées, des visites limitées au
+ * nombre de fermes voisines, des ventes aux enchères décidées par d'autres
+ * joueurs, des nuisibles tirés au hasard. Les multiplier par le niveau rendait
+ * certaines quêtes impossibles (`weekly_login_5` exigeait 8 connexions sur une
+ * semaine de 7 jours dès le niveau 11).
+ */
+const UNSCALED_OBJECTIVES: ReadonlySet<string> = new Set([
+  'login_streak',
+  'help_farmer',
+  'visit_farm',
+  'auction_sale',
+  'treat_pest',
+]);
+
+/**
+ * Plafond DUR d'un objectif sur `days` jours, ou `null` s'il n'y en a pas.
+ * Sert de garde-fou au cas où la configuration dépasserait ce que le jeu permet.
+ */
+export function objectiveCap(objectiveType: string, days: number): number | null {
+  const balance = getBalance();
+  switch (objectiveType) {
+    case 'login_streak':
+      return days;
+    case 'help_farmer':
+      return balance.social.maxHelpsPerDay * days;
+    default:
+      return null;
+  }
+}
+
+/** Nombre de jours d'un cycle de quête complet. */
+export function cycleDays(type: 'daily' | 'weekly' | 'story' | 'contract'): number | null {
+  if (type === 'daily' || type === 'contract') return 1;
+  if (type === 'weekly') return 7;
+  return null;
+}
+
+/**
+ * Quantité exigée d'une quête pour un joueur de niveau `level`.
+ *
+ * Seules journalières et hebdomadaires suivent le niveau ; les objectifs bornés
+ * (`UNSCALED_OBJECTIVES`) gardent leur valeur de base, puis tout est ramené au
+ * plafond dur sur les `daysLeft` jours qui restent dans le cycle (une
+ * hebdomadaire attribuée le vendredi n'a plus que 3 jours de connexion).
+ */
+export function questRequirement(
+  quest: { type: 'daily' | 'weekly' | 'story' | 'contract'; objectiveType: string; requiredAmount: number },
+  level: number,
+  daysLeft: number | null = cycleDays(quest.type),
+): number {
+  if (quest.type !== 'daily' && quest.type !== 'weekly') return quest.requiredAmount;
+  const base = UNSCALED_OBJECTIVES.has(quest.objectiveType)
+    ? quest.requiredAmount
+    : scaleAmount(quest.requiredAmount, level);
+  const cap = daysLeft === null ? null : objectiveCap(quest.objectiveType, Math.max(1, daysLeft));
+  return cap === null ? base : Math.max(1, Math.min(base, cap));
+}
+
+/** Jours calendaires restants dans un cycle, jour courant compris. */
+function daysLeftUntil(now: Date, expiresAt: Date, timezone: string): number {
+  return Math.max(1, calendarDaysBetween(now, new Date(expiresAt.getTime() - 1), timezone) + 1);
+}
+
+/**
+ * Clé du cycle journalier de la VEILLE, en jours calendaires du fuseau.
+ * Soustraire 24 h ne donne pas la veille autour d'un changement d'heure : le
+ * 25 octobre à 23:30 (heure d'hiver), `now - 24 h` tombe encore le 25.
+ */
+export function previousDailyCycleKey(now: Date, timezone = 'Europe/Paris'): string {
+  return DateTime.fromJSDate(now, { zone: timezone }).minus({ days: 1 }).toFormat('yyyy-MM-dd');
+}
+
 function buildSnapshot(quest: QuestConfig, level: number): QuestSnapshotShape {
   return {
     title: quest.title,
@@ -112,15 +186,24 @@ export async function ensureQuests(
   player: Pick<PlayerContext, 'id' | 'level'>,
   timezone = 'Europe/Paris',
   now: Date = new Date(),
-): Promise<void> {
+  executor?: Executor,
+): Promise<number> {
   const balance = getBalance();
   const dailyKey = dailyCycleKey(now, timezone);
   const weeklyKey = weeklyCycleKey(now, timezone);
 
-  const existing = await progressionRepo.listUserQuests(player.id);
-  const dailies = existing.filter((quest) => quest.type === 'daily' && quest.cycleKey === dailyKey);
-  const weeklies = existing.filter((quest) => quest.type === 'weekly' && quest.cycleKey === weeklyKey);
-  const contracts = existing.filter(
+  // Toutes les lectures et l'insertion passent par `executor` : appelée depuis
+  // une transaction qui tient déjà le verrou du joueur, une insertion faite sur
+  // une autre connexion du pool attendrait ce verrou (clé étrangère) jusqu'au
+  // délai d'expiration des requêtes.
+  const existing = await progressionRepo.listCycleQuests(player.id, [dailyKey, weeklyKey], executor);
+  // Les témoins de relance (`failed`) bloquent le re-tirage de leur quête mais
+  // n'occupent plus d'emplacement.
+  const occupying = existing.filter((quest) => quest.status !== 'failed');
+  const allDailies = existing.filter((quest) => quest.type === 'daily' && quest.cycleKey === dailyKey);
+  const dailies = occupying.filter((quest) => quest.type === 'daily' && quest.cycleKey === dailyKey);
+  const weeklies = occupying.filter((quest) => quest.type === 'weekly' && quest.cycleKey === weeklyKey);
+  const contracts = occupying.filter(
     (quest) => quest.type === 'contract' && quest.cycleKey === dailyKey,
   );
   const stories = existing.filter((quest) => quest.type === 'story');
@@ -129,47 +212,49 @@ export async function ensureQuests(
 
   // --- Journalières : tirage pondéré déterministe par jour et par joueur ---
   if (dailies.length < balance.quests.dailyCount) {
-    const pool = await progressionRepo.listQuestPool('daily', player.level);
+    const pool = await progressionRepo.listQuestPool('daily', player.level, executor);
     const rng = dailyRng(`quests:${player.id}`, dailyKey);
-    const picked = pickWeighted(pool, balance.quests.dailyCount - dailies.length, rng, new Set(dailies.map((q) => q.questKey)));
+    const picked = pickWeighted(pool, balance.quests.dailyCount - dailies.length, rng, new Set(allDailies.map((q) => q.questKey)));
+    const expiresAt = nextMidnight(now, timezone);
     picked.forEach((quest, index) => {
       toAssign.push({
         userId: player.id,
         questKey: quest.key,
         type: 'daily',
         progress: 0,
-        required: scaleAmount(quest.requiredAmount, player.level),
+        required: questRequirement({ ...quest, type: 'daily' }, player.level, daysLeftUntil(now, expiresAt, timezone)),
         cycleKey: dailyKey,
         slotIndex: dailies.length + index,
         snapshot: buildSnapshot(toQuestConfig(quest), player.level),
-        expiresAt: nextMidnight(now, timezone),
+        expiresAt,
       });
     });
   }
 
   // --- Hebdomadaires ---
   if (weeklies.length < balance.quests.weeklyCount) {
-    const pool = await progressionRepo.listQuestPool('weekly', player.level);
+    const pool = await progressionRepo.listQuestPool('weekly', player.level, executor);
     const rng = dailyRng(`weeklies:${player.id}`, weeklyKey);
     const picked = pickWeighted(pool, balance.quests.weeklyCount - weeklies.length, rng, new Set(weeklies.map((q) => q.questKey)));
+    const expiresAt = nextMondayMidnight(now, timezone);
     picked.forEach((quest, index) => {
       toAssign.push({
         userId: player.id,
         questKey: quest.key,
         type: 'weekly',
         progress: 0,
-        required: scaleAmount(quest.requiredAmount, player.level),
+        required: questRequirement({ ...quest, type: 'weekly' }, player.level, daysLeftUntil(now, expiresAt, timezone)),
         cycleKey: weeklyKey,
         slotIndex: weeklies.length + index,
         snapshot: buildSnapshot(toQuestConfig(quest), player.level),
-        expiresAt: nextMondayMidnight(now, timezone),
+        expiresAt,
       });
     });
   }
 
   // --- Contrats du village ---
   if (contracts.length < balance.quests.contractCount) {
-    const pool = await progressionRepo.listQuestPool('contract', player.level);
+    const pool = await progressionRepo.listQuestPool('contract', player.level, executor);
     const rng = dailyRng(`contracts:${player.id}`, dailyKey);
     const picked = pickWeighted(pool, balance.quests.contractCount - contracts.length, rng, new Set(contracts.map((q) => q.questKey)));
     picked.forEach((quest, index) => {
@@ -190,8 +275,8 @@ export async function ensureQuests(
   // --- Chaîne narrative : une seule quête active à la fois ---
   const activeStory = stories.find((quest) => quest.status === 'active');
   if (!activeStory) {
-    const step = (await progressionRepo.highestStoryStep(player.id, balance.quests.storyChainKey)) + 1;
-    const next = await progressionRepo.nextStoryQuest(balance.quests.storyChainKey, step);
+    const step = (await progressionRepo.highestStoryStep(player.id, balance.quests.storyChainKey, executor)) + 1;
+    const next = await progressionRepo.nextStoryQuest(balance.quests.storyChainKey, step, executor);
     if (next && next.requiredLevel <= player.level) {
       toAssign.push({
         userId: player.id,
@@ -208,9 +293,59 @@ export async function ensureQuests(
   }
 
   if (toAssign.length > 0) {
-    await progressionRepo.assignQuests(toAssign);
-    log.debug({ userId: player.id, count: toAssign.length }, 'quests assigned');
+    await progressionRepo.assignQuests(toAssign, executor);
+    log.debug({ userId: player.id, count: toAssign.length }, 'quêtes assignées');
   }
+  return toAssign.length;
+}
+
+/**
+ * Mémoire locale des joueurs dont le cycle courant est déjà assigné, pour que
+ * `trackAction` (appelé des dizaines de fois par session) ne relise pas les
+ * quêtes à chaque récolte. La clé inclut le niveau : une montée de niveau peut
+ * débloquer l'étape narrative suivante. Une entrée n'est posée que lorsque
+ * l'assignation n'a RIEN inséré, c'est-à-dire quand les lignes lues étaient
+ * déjà validées : une insertion annulée avec sa transaction ne peut donc pas
+ * laisser croire que le joueur a ses quêtes.
+ */
+const ensuredCycles = new Map<string, { key: string; at: number }>();
+const ENSURED_TTL_MS = 10 * 60_000;
+const ENSURED_MAX_ENTRIES = 50_000;
+
+/**
+ * Assigne les quêtes du cycle avant qu'une action ne les fasse progresser.
+ * Sans cela, la première récolte d'un nouveau joueur (ou la première action du
+ * jour) ne comptait pour rien tant que `/quests` n'avait pas été ouvert.
+ *
+ * S'exécute sous point de reprise dans la transaction de l'action : un échec
+ * n'annule que l'assignation.
+ */
+export async function ensureQuestsForAction(
+  context: { userId: string; level: number },
+  tx: Executor,
+  timezone = 'Europe/Paris',
+  now: Date = new Date(),
+): Promise<void> {
+  const cycle = `${dailyCycleKey(now, timezone)}|${weeklyCycleKey(now, timezone)}|${context.level}`;
+  const known = ensuredCycles.get(context.userId);
+  if (known && known.key === cycle && now.getTime() - known.at < ENSURED_TTL_MS) return;
+
+  const assigned = await tx.transaction(async (scope) => {
+    // Le niveau transmis n'est pas toujours celui du joueur concerné (vente aux
+    // enchères créditée au vendeur) : on relit la valeur de référence.
+    const level = (await progressionRepo.getUserLevel(context.userId, scope)) ?? context.level;
+    return ensureQuests({ id: context.userId, level }, timezone, now, scope);
+  });
+
+  if (assigned === 0) {
+    if (ensuredCycles.size >= ENSURED_MAX_ENTRIES) ensuredCycles.clear();
+    ensuredCycles.set(context.userId, { key: cycle, at: now.getTime() });
+  }
+}
+
+/** Réservé aux tests : vide la mémoire d'assignation. */
+export function resetEnsuredCyclesForTests(): void {
+  ensuredCycles.clear();
 }
 
 function toQuestConfig(row: {
@@ -277,7 +412,7 @@ export async function listQuests(
   const now = Date.now();
 
   return rows
-    .filter((row) => row.status !== 'expired')
+    .filter((row) => row.status !== 'expired' && row.status !== 'failed')
     .filter((row) => !row.expiresAt || row.expiresAt.getTime() > now)
     .map((row) => {
       const snapshot = row.snapshot as QuestSnapshotShape;
@@ -332,8 +467,15 @@ export async function claimQuest(player: PlayerContext, questId: string): Promis
         params: { progress: quest.progress, required: quest.required },
       });
     }
+    const now = new Date();
+    // Le job d'expiration passe après minuit : l'échéance fait foi, pas le statut.
+    if (isExpired(quest, now)) {
+      throw gameError('invalid_state', 'This quest has expired.', {
+        i18nKey: 'errors.progression.quest_expired',
+      });
+    }
 
-    const claimed = await progressionRepo.markQuestClaimed(questId, new Date(), tx);
+    const claimed = await progressionRepo.markQuestClaimed(questId, now, tx);
     if (!claimed) {
       throw gameError('busy', 'Reward already being processed.', {
         i18nKey: 'errors.progression.reward_processing',
@@ -378,8 +520,10 @@ export async function claimQuest(player: PlayerContext, questId: string): Promis
       : undefined;
 
     // Une quête narrative terminée débloque immédiatement la suivante.
+    // Dans la transaction (`tx`) : hors d'elle, l'insertion attendait le verrou
+    // du joueur que cette même transaction détient, jusqu'au délai d'expiration.
     if (quest.type === 'story') {
-      await ensureQuests({ id: player.id, level: xpResult?.level ?? player.level });
+      await ensureQuests({ id: player.id, level: xpResult?.level ?? player.level }, undefined, now, tx);
     }
 
     return {
@@ -397,10 +541,15 @@ export async function claimQuest(player: PlayerContext, questId: string): Promis
   });
 }
 
+function isExpired(quest: { expiresAt: Date | null }, now: Date): boolean {
+  return quest.expiresAt !== null && quest.expiresAt.getTime() <= now.getTime();
+}
+
 /** Perçoit toutes les récompenses disponibles d'un coup. */
 export async function claimAllQuests(player: PlayerContext): Promise<ClaimResult[]> {
   const quests = await progressionRepo.listUserQuests(player.id);
-  const claimable = quests.filter((quest) => quest.status === 'completed');
+  const now = new Date();
+  const claimable = quests.filter((quest) => quest.status === 'completed' && !isExpired(quest, now));
   const results: ClaimResult[] = [];
   for (const quest of claimable) {
     try {
@@ -413,6 +562,16 @@ export async function claimAllQuests(player: PlayerContext): Promise<ClaimResult
     throw gameError('invalid_state', 'No reward to claim.', { i18nKey: 'quests.nothing_to_claim' });
   }
   return results;
+}
+
+/**
+ * Coût en pièces de la relance suivante, après `rerolls` relances dans la
+ * journée : `rerollCostCoins × rerollCostGrowth^rerolls` (500, 1 000, 2 000 avec
+ * l'équilibrage actuel), arrondi au supérieur puisque c'est une dépense.
+ */
+export function rerollCost(rerolls: number): number {
+  const balance = getBalance();
+  return scaleMoneyUp(balance.quests.rerollCostCoins, balance.quests.rerollCostGrowth ** rerolls);
 }
 
 /**
@@ -440,7 +599,7 @@ export async function rerollQuest(
         i18nKey: 'errors.progression.only_daily_rerollable',
       });
     }
-    if (quest.status !== 'active') {
+    if (quest.status !== 'active' || isExpired(quest, now)) {
       throw gameError('invalid_state', 'This quest can no longer be rerolled.', {
         i18nKey: 'errors.progression.reroll_unavailable',
       });
@@ -456,9 +615,7 @@ export async function rerollQuest(
     }
 
     const usedToken = await inventoryService.has(player.id, 'quest_reroll_token', 1, tx);
-    const cost = usedToken
-      ? 0
-      : scaleMoneyUp(balance.quests.rerollCostCoins, balance.quests.rerollCostGrowth ** rerolls);
+    const cost = usedToken ? 0 : rerollCost(rerolls);
 
     if (usedToken) {
       await inventoryService.consume(player.id, 'quest_reroll_token', 1, tx, player.locale);
@@ -486,7 +643,7 @@ export async function rerollQuest(
         questKey: chosen.key,
         type: 'daily',
         progress: 0,
-        required: scaleAmount(chosen.requiredAmount, player.level),
+        required: questRequirement({ ...chosen, type: 'daily' }, player.level),
         cycleKey: dailyKey,
         slotIndex: quest.slotIndex,
         snapshot: buildSnapshot(toQuestConfig(chosen), player.level),
@@ -579,7 +736,7 @@ export async function claimDaily(
     }
 
     // Calcul de la continuité de série.
-    const yesterday = dailyCycleKey(new Date(now.getTime() - 86_400_000), timezone);
+    const yesterday = previousDailyCycleKey(now, timezone);
     let streak = streakRow.currentStreak;
     let streakBroken = false;
     let usedFreeze = false;
@@ -652,6 +809,13 @@ export async function claimDaily(
     }
     await grantXp(player.id, xp, tx);
 
+    // Assigne d'abord les quêtes du cycle : une réclamation faite avant la
+    // première ouverture de `/quests` doit compter pour `login_streak`.
+    try {
+      await ensureQuestsForAction({ userId: player.id, level: player.level }, tx, timezone, now);
+    } catch (error) {
+      log.warn({ err: error, userId: player.id }, 'assignation des quêtes impossible');
+    }
     await progressionRepo.progressQuests(player.id, 'login_streak', 1, {}, tx);
     await progressionRepo.setAchievementProgress(player.id, 'login_streak', streak, tx);
 
@@ -865,7 +1029,7 @@ export async function deliverItems(
         i18nKey: 'errors.progression.contract_not_found',
       });
     }
-    if (quest.status !== 'active') {
+    if (quest.status !== 'active' || isExpired(quest, new Date())) {
       throw gameError('invalid_state', 'This contract is closed.', {
         i18nKey: 'errors.progression.contract_closed',
       });

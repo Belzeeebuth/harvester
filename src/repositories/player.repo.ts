@@ -1,13 +1,17 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDb, type Executor } from '../db/client';
 import {
+  auctionBids,
+  auctionListings,
   bankAccounts,
   coopMembers,
   coops,
+  craftingQueue,
   dailyStreaks,
   farms,
   plots,
   settings,
+  trades,
   users,
 } from '../db/schema';
 import type { Balance } from '../config/gameplay/schemas';
@@ -53,6 +57,25 @@ export async function findUserById(
   executor: Executor = getDb(),
 ): Promise<UserRow | undefined> {
   const [row] = await executor.select().from(users).where(eq(users.id, userId)).limit(1);
+  return row;
+}
+
+/**
+ * Lit le joueur en posant le verrou de ligne (`FOR NO KEY UPDATE`, comme
+ * `lockUserRow`) : pour les lectures suivies d'une écriture absolue, l'énergie
+ * au premier chef. Sans verrou, deux actions simultanées lisaient la même
+ * énergie et la seconde écriture effaçait la dépense de la première.
+ */
+export async function findUserByIdForUpdate(
+  userId: string,
+  tx: Executor,
+): Promise<UserRow | undefined> {
+  const [row] = await tx
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+    .for('no key update');
   return row;
 }
 
@@ -391,4 +414,50 @@ export async function addSuspicion(
 export async function resetWeeklyXp(executor: Executor = getDb()): Promise<number> {
   const result = await executor.update(users).set({ weeklyXp: 0 }).where(sql`${users.weeklyXp} > 0`);
   return result.rowCount ?? 0;
+}
+
+export interface PrestigeBlockers {
+  /** Annonces encore ouvertes à l'hôtel des ventes (objets en dépôt). */
+  listings: number;
+  /** Enchères non remboursées sur des annonces ouvertes (pièces en dépôt). */
+  bids: number;
+  /** Échanges directs en attente (objets verrouillés). */
+  trades: number;
+  /** Fabrications pas encore récupérées. */
+  crafts: number;
+}
+
+/**
+ * Tout ce qui garde des biens HORS de l'inventaire et des pièces, et que la
+ * renaissance ne saurait donc pas remettre à zéro : une annonce annulée, une
+ * enchère remboursée ou une fabrication récupérée après coup rendait objets et
+ * pièces au joueur fraîchement « remis à zéro ». Les annonces échues pas
+ * encore clôturées par le job comptent aussi : leur clôture rend les objets.
+ */
+export async function countPrestigeBlockers(
+  userId: string,
+  executor: Executor = getDb(),
+): Promise<PrestigeBlockers> {
+  const [row] = await executor
+    .select({
+      listings: sql<number>`(SELECT count(*)::int FROM ${auctionListings}
+        WHERE ${auctionListings.sellerId} = ${userId} AND ${auctionListings.status} = 'active')`,
+      bids: sql<number>`(SELECT count(*)::int FROM ${auctionBids}
+        JOIN ${auctionListings} ON ${auctionListings.id} = ${auctionBids.listingId}
+        WHERE ${auctionBids.bidderId} = ${userId} AND ${auctionBids.refunded} = false
+          AND ${auctionListings.status} = 'active')`,
+      trades: sql<number>`(SELECT count(*)::int FROM ${trades}
+        WHERE ${trades.status} = 'pending'
+          AND (${trades.initiatorId} = ${userId} OR ${trades.partnerId} = ${userId}))`,
+      crafts: sql<number>`(SELECT count(*)::int FROM ${craftingQueue}
+        WHERE ${craftingQueue.userId} = ${userId} AND ${craftingQueue.collected} = false)`,
+    })
+    .from(users)
+    .where(eq(users.id, userId));
+  return {
+    listings: Number(row?.listings ?? 0),
+    bids: Number(row?.bids ?? 0),
+    trades: Number(row?.trades ?? 0),
+    crafts: Number(row?.crafts ?? 0),
+  };
 }

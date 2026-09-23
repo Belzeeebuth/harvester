@@ -51,9 +51,32 @@ function minimum(list: Sample[]): number {
   return list.reduce((min, sample) => Math.min(min, sample.delta), Number.POSITIVE_INFINITY);
 }
 
-/** Décalage estimé de notre horloge par rapport à celle de Discord (positif : nous avançons). */
-export function clockOffsetMs(): number {
-  return samples.length > 0 ? minimum(samples) : 0;
+/** Ne garde que les mesures encore dans la fenêtre glissante (horloge monotone). */
+function prune(monotonic: number): void {
+  samples = samples.filter((sample) => monotonic - sample.at <= WINDOW_MS);
+}
+
+/**
+ * Décalage estimé de notre horloge par rapport à celle de Discord (positif : nous
+ * avançons), ou `undefined` faute de mesure récente.
+ *
+ * Les mesures sont élaguées À LA LECTURE aussi : sans cela, un bot sans trafic
+ * exportait pendant des jours la dernière valeur vue (-116 s, alors que
+ * l'horloge avait été recalée depuis), et la jauge ne voulait plus rien dire.
+ */
+export function clockOffsetEstimate(monotonic: number = performance.now()): number | undefined {
+  prune(monotonic);
+  return samples.length > 0 ? minimum(samples) : undefined;
+}
+
+/** Décalage estimé, ou 0 faute de mesure récente dans la fenêtre. */
+export function clockOffsetMs(monotonic: number = performance.now()): number {
+  return clockOffsetEstimate(monotonic) ?? 0;
+}
+
+/** Valeur de la jauge Prometheus : `NaN` (inconnu) plutôt qu'une mesure périmée. */
+export function formatClockOffset(estimate: number | undefined): string {
+  return estimate === undefined ? 'NaN' : String(Math.round(estimate));
 }
 
 /** Convertit un instant daté par Discord en instant de NOTRE horloge. */
@@ -70,7 +93,7 @@ export function observeInteraction(
   now: number = Date.now(),
   monotonic: number = performance.now(),
 ): { offsetMs: number; lagMs: number } {
-  samples = samples.filter((sample) => monotonic - sample.at <= WINDOW_MS);
+  prune(monotonic);
   samples.push({ at: monotonic, delta: now - createdTimestamp });
 
   // Horloge recalée vers l'avant (NTP enfin joignable, correction manuelle) :
@@ -88,7 +111,7 @@ export function observeInteraction(
     samples = recent;
   }
 
-  const offsetMs = clockOffsetMs();
+  const offsetMs = clockOffsetMs(monotonic);
   if (Math.abs(offsetMs) > SKEW_WARNING_MS && monotonic - lastSkewWarningAt > SKEW_WARNING_EVERY_MS) {
     lastSkewWarningAt = monotonic;
     log.warn(

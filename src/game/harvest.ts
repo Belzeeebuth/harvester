@@ -138,8 +138,10 @@ export function weedPenalty(weedLevel: number, balance: Balance): number {
 
 /**
  * Facteur de saison. Une culture plantée dans sa saison favorable gagne 20 %,
- * hors saison elle perd 35 % (et 10 % de plus en hiver). La serre annule
- * totalement ce facteur — c'est ce qui justifie son coût de 90 000 pièces.
+ * hors saison elle perd 35 % (et 10 % de plus en hiver). La serre annule la
+ * PÉNALITÉ hors saison, jamais le bonus : elle renvoyait 1 dans tous les cas,
+ * si bien qu'une culture de saison rendait 20 % de moins sous serre qu'à l'air
+ * libre. D'où `max(facteur normal, 1)`.
  */
 export function seasonFactor(
   crop: CropConfig,
@@ -147,13 +149,14 @@ export function seasonFactor(
   modifiers: FarmModifiers,
   balance: Balance,
 ): number {
-  if (modifiers.seasonImmunity) return 1;
+  let factor: number;
   if (crop.seasons.includes(season as never)) {
-    return 1 + balance.seasons.inSeasonYieldBonus;
+    factor = 1 + balance.seasons.inSeasonYieldBonus;
+  } else {
+    factor = 1 - balance.seasons.offSeasonYieldPenalty;
+    if (season === 'winter') factor *= 1 - balance.seasons.winterExtraPenalty;
   }
-  let factor = 1 - balance.seasons.offSeasonYieldPenalty;
-  if (season === 'winter') factor *= 1 - balance.seasons.winterExtraPenalty;
-  return factor;
+  return modifiers.seasonImmunity ? Math.max(factor, 1) : factor;
 }
 
 export function computeHarvest(input: HarvestInput): HarvestResult {

@@ -1207,6 +1207,7 @@
       "quest_not_found": "Quest not found.",
       "reward_already_claimed": "This reward was already claimed.",
       "quest_not_complete": "This quest is not complete.",
+      "quest_expired": "This quest has expired, its reward is no longer available.",
       "quest_progress_hint": "Progress: {progress}/{required}.",
       "reward_processing": "Reward already being processed.",
       "only_daily_rerollable": "Only daily quests can be rerolled.",

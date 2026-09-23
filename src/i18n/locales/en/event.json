@@ -1,0 +1,30 @@
+{
+  "$comment": "Event reward tiers and shop (/event). Fragment merged with en.json at load time; same tree as fr/event.json.",
+  "event": {
+    "ends_line": "Event ends {relative}.",
+    "balance_line": "Your tokens: {balances}",
+    "shop_field": "🛒 Event shop",
+    "shop_line": "{emoji} {name} · {price} · {remaining} of {limit} left",
+    "also_active_field": "Also running",
+    "claim_button": "Claim tiers ({count})",
+    "claim_title": "🎁 Tiers claimed: {count}",
+    "claim_rewards_line": "Received: {rewards}",
+    "claim_title_line": "New title: \"{title}\"",
+    "buy_placeholder": "Buy an event item",
+    "buy_option_description": "{remaining} of {limit} left for this event",
+    "buy_option_sold_out": "Limit reached for this event",
+    "buy_qty_modal_title": "Event shop",
+    "buy_qty_modal_label": "Quantity",
+    "buy_qty_modal_placeholder": "1 to {max}",
+    "purchase_title": "🛒 Event shop purchase",
+    "purchase_body": "**{quantity}× {emoji} {name}** for {cost}.\nStill available to you: {remaining}."
+  },
+  "errors": {
+    "event": {
+      "not_active": "This event is no longer running.",
+      "nothing_to_claim": "No tier to claim yet.",
+      "not_in_shop": "This item isn't sold during the event.",
+      "shop_limit": "Limit of {limit} per player for this event. You have {remaining} left."
+    }
+  }
+}

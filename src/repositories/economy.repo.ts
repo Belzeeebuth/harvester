@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
 import { getDb, type Executor } from '../db/client';
 import {
   bankAccounts,
@@ -355,9 +355,10 @@ export async function upgradeBankTier(
     .where(eq(bankAccounts.userId, userId));
 }
 
-/** Comptes éligibles aux intérêts (job quotidien). */
 /**
- * Comptes éligibles aux intérêts (job quotidien).
+ * Comptes éligibles aux intérêts (job quotidien) : dernier versement STRICTEMENT
+ * antérieur à `before` (le début du jour UTC de l'exécution, voir
+ * `jobs/bank-interest.ts`).
  *
  * Le filtre porte sur un solde MINIMUM et non sur « > 0 » : un compte dont
  * l'intérêt s'arrondit à zéro était re-sélectionné chaque jour, en tête de tri,
@@ -375,7 +376,7 @@ export async function findAccountsForInterest(
     .from(bankAccounts)
     .where(
       and(
-        lte(bankAccounts.lastInterestAt, before),
+        lt(bankAccounts.lastInterestAt, before),
         gte(bankAccounts.balance, Math.max(1, minimumBalance)),
       ),
     )
@@ -387,12 +388,13 @@ export async function findAccountsForInterest(
 export async function skipInterest(
   accountId: string,
   now: Date,
+  dueBefore: Date,
   executor: Executor = getDb(),
 ): Promise<void> {
   await executor
     .update(bankAccounts)
     .set({ lastInterestAt: now, updatedAt: now })
-    .where(eq(bankAccounts.id, accountId));
+    .where(and(eq(bankAccounts.id, accountId), lt(bankAccounts.lastInterestAt, dueBefore)));
 }
 
 /**
@@ -406,9 +408,12 @@ export async function applyInterest(
   accountId: string,
   amount: number,
   now: Date,
+  dueBefore: Date,
   executor: Executor,
-): Promise<void> {
-  await executor
+): Promise<boolean> {
+  // L'échéance est revérifiée dans l'UPDATE : deux exécutions concurrentes du
+  // job (deux instances, relance manuelle) ne versent jamais deux fois.
+  const result = await executor
     .update(bankAccounts)
     .set({
       balance: sql`LEAST(${bankAccounts.balance} + ${amount}, ${bankAccounts.capacity})`,
@@ -416,7 +421,8 @@ export async function applyInterest(
       lastInterestAt: now,
       updatedAt: now,
     })
-    .where(eq(bankAccounts.id, accountId));
+    .where(and(eq(bankAccounts.id, accountId), lt(bankAccounts.lastInterestAt, dueBefore)));
+  return (result.rowCount ?? 0) > 0;
 }
 
 // ---------------------------------------------------------------------------

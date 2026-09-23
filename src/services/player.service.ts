@@ -435,6 +435,12 @@ export async function getEnergy(
 /**
  * Vérifie et consomme l'énergie d'une action.
  * Lève `insufficient_energy` sans rien modifier si le joueur n'a pas assez.
+ *
+ * La lecture VERROUILLE la ligne joueur jusqu'à la fin de la transaction :
+ * arroser, désherber, nourrir ou fabriquer n'appellent pas `lockUserRow`, et
+ * deux actions simultanées lisaient la même énergie puis écrivaient chacune
+ * une valeur absolue (une seule dépense retenue). Le verrou ne coûte rien de
+ * plus : l'écriture qui suit l'aurait pris de toute façon.
  */
 export async function consumeEnergy(
   userId: string,
@@ -446,7 +452,13 @@ export async function consumeEnergy(
   if (!balance.energy.enabled) return { spent: 0, remaining: 0 };
 
   const now = options.now ?? new Date();
-  const projection = await getEnergy(userId, now, tx);
+  const user = await playerRepo.findUserByIdForUpdate(userId, tx);
+  if (!user) throw gameError('not_registered', 'Player not found.', { i18nKey: 'errors.player_not_found' });
+  const projection = projectEnergy(
+    { energy: user.energy, energyMax: user.energyMax, energyUpdatedAt: user.energyUpdatedAt },
+    now,
+    balance,
+  );
   const cost = energyCost(action, balance, options.costReduction ?? 0, options.quantity ?? 1);
 
   if (!hasEnergy(projection, cost)) {

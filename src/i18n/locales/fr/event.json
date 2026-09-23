@@ -1,0 +1,30 @@
+{
+  "$comment": "Paliers et boutique des événements (/event). Fragment fusionné avec fr.json au chargement ; même arborescence que en/event.json.",
+  "event": {
+    "ends_line": "Fin de l'événement : {relative}.",
+    "balance_line": "Vos jetons : {balances}",
+    "shop_field": "🛒 Boutique de l'événement",
+    "shop_line": "{emoji} {name} · {price} · encore {remaining} sur {limit}",
+    "also_active_field": "Aussi en cours",
+    "claim_button": "Réclamer les paliers ({count})",
+    "claim_title": "🎁 Paliers réclamés : {count}",
+    "claim_rewards_line": "Reçu : {rewards}",
+    "claim_title_line": "Nouveau titre : « {title} »",
+    "buy_placeholder": "Acheter un article de l'événement",
+    "buy_option_description": "Encore {remaining} sur {limit} pour cet événement",
+    "buy_option_sold_out": "Limite atteinte pour cet événement",
+    "buy_qty_modal_title": "Boutique de l'événement",
+    "buy_qty_modal_label": "Quantité",
+    "buy_qty_modal_placeholder": "1 à {max}",
+    "purchase_title": "🛒 Achat à la boutique de l'événement",
+    "purchase_body": "**{quantity}× {emoji} {name}** pour {cost}.\nEncore disponible pour vous : {remaining}."
+  },
+  "errors": {
+    "event": {
+      "not_active": "Cet événement n'est plus en cours.",
+      "nothing_to_claim": "Aucun palier à réclamer pour l'instant.",
+      "not_in_shop": "Cet article n'est pas vendu pendant l'événement.",
+      "shop_limit": "Limite de {limit} par joueur pour cet événement. Il vous en reste {remaining}."
+    }
+  }
+}

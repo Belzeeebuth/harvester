@@ -23,6 +23,7 @@ import * as webhookService from '../services/webhook.service';
 import { ensureSeasonCalendar, getWorldState } from '../services/world.service';
 import { isPestRepelActive } from '../services/consumable.service';
 import { currentWeekStart, toSqlDate, weeklyCycleKey } from '../utils/time';
+import { interestCutoff } from './bank-interest';
 
 const log = moduleLogger('jobs');
 
@@ -146,12 +147,16 @@ export const jobs: JobDefinition[] = [
           rng,
         );
 
-        if (pest) {
-          await farmRepo.updatePlot(candidate.plotId, {
-            pestType: pest,
-            pestAppearedAt: new Date(),
-            pestDeadlineAt: new Date(Date.now() + balance.pests.deadlineHours * 3_600_000),
-          });
+        // Écriture conditionnelle : la parcelle a pu être récoltée depuis la
+        // sélection, et un nuisible sur une parcelle vide n'a pas de sens.
+        const spawned = pest
+          ? await farmRepo.spawnPestIfStillPlanted(candidate.plotId, {
+              pestType: pest,
+              pestAppearedAt: new Date(),
+              pestDeadlineAt: new Date(Date.now() + balance.pests.deadlineHours * 3_600_000),
+            })
+          : false;
+        if (spawned) {
           pests += 1;
 
           await systemRepo.enqueueNotification({
@@ -177,10 +182,7 @@ export const jobs: JobDefinition[] = [
         );
         if (damage > 0) {
           const plots = await farmRepo.getPlotBySlot(candidate.farmId, candidate.slot);
-          if (plots?.crop) {
-            await farmRepo.updatePlantedCrop(plots.crop.id, {
-              damagePenalty: Math.min(1, Number(plots.crop.damagePenalty) + damage).toFixed(3),
-            });
+          if (plots?.crop && (await farmRepo.addCropDamage(plots.crop.id, damage))) {
             damaged += 1;
           }
         }
@@ -213,20 +215,37 @@ export const jobs: JobDefinition[] = [
         )
         .limit(300);
 
+      const { withTransaction } = await import('../db/client');
+      const now = new Date();
       let applied = 0;
       for (const entry of overdue) {
-        const outcome = pestConsequence(balance, liveRng(`pest-out:${entry.plotId}`));
-        await farmRepo.updatePlantedCrop(entry.cropId, {
-          damagePenalty: outcome.damagePenalty.toFixed(3),
-          withered: outcome.withered,
+        // Tout est revérifié sous le verrou de la parcelle : entre la sélection
+        // et ici, le joueur a pu traiter le nuisible, récolter ou replanter.
+        // L'ancienne écriture sans condition flétrissait une parcelle vidée
+        // (état `withered` sans culture, refusé ensuite par `plant()`).
+        const affected = await withTransaction(async (tx) => {
+          const plot = await farmRepo.lockPlotById(tx, entry.plotId);
+          if (!plot?.pestType || !plot.pestDeadlineAt || plot.pestDeadlineAt.getTime() > now.getTime()) {
+            return false;
+          }
+          const crop = await farmRepo.getCropByPlotId(plot.id, tx);
+          const clearPest = { pestType: null, pestAppearedAt: null, pestDeadlineAt: null };
+          if (!crop || crop.withered) {
+            // Nuisible orphelin : on l'efface sans toucher à l'état.
+            await farmRepo.updatePlot(plot.id, clearPest, tx);
+            return false;
+          }
+          const outcome = pestConsequence(balance, liveRng(`pest-out:${entry.plotId}`));
+          // Les dégâts s'AJOUTENT à ceux déjà subis (météo) au lieu de les écraser.
+          await farmRepo.addCropDamage(crop.id, outcome.damagePenalty, { wither: outcome.withered }, tx);
+          await farmRepo.updatePlot(
+            plot.id,
+            { ...clearPest, ...(outcome.withered ? { state: 'withered' as const } : {}) },
+            tx,
+          );
+          return true;
         });
-        await farmRepo.updatePlot(entry.plotId, {
-          pestType: null,
-          pestAppearedAt: null,
-          pestDeadlineAt: null,
-          ...(outcome.withered ? { state: 'withered' as const } : {}),
-        });
-        applied += 1;
+        if (affected) applied += 1;
       }
       return `${applied} plots affected`;
     },
@@ -237,8 +256,10 @@ export const jobs: JobDefinition[] = [
     cron: '15 * * * *',
     description: 'Withers crops left too long',
     async run() {
-      const withered = await farmRepo.witherOverdueCrops(new Date(), 500);
-      return `${withered} crops withered`;
+      const now = new Date();
+      const withered = await farmRepo.witherOverdueCrops(now, 500);
+      const repaired = await farmRepo.repairOrphanWitheredPlots(now);
+      return `${withered} crops withered, ${repaired} orphan plots reset`;
     },
   },
 
@@ -282,8 +303,17 @@ export const jobs: JobDefinition[] = [
           balance,
         );
 
+        // Écritures conditionnelles : si le joueur a agi depuis la lecture
+        // (`stats_updated_at` a bougé), la projection est périmée et on laisse
+        // l'animal au prochain passage.
+        const seen = row.animal.statsUpdatedAt;
         if (status.shouldDie) {
-          await animalRepo.killAnimal(row.animal.id, 'negligence', now);
+          const killed = await animalRepo.applyDecayIfUnchanged(row.animal.id, seen, {
+            isAlive: false,
+            diedAt: now,
+            deathReason: 'negligence',
+          });
+          if (!killed) continue;
           died += 1;
           await systemRepo.enqueueNotification({
             userId: row.animal.userId,
@@ -298,13 +328,14 @@ export const jobs: JobDefinition[] = [
           continue;
         }
 
-        await animalRepo.updateAnimal(row.animal.id, {
+        const updated = await animalRepo.applyDecayIfUnchanged(row.animal.id, seen, {
           hunger: status.hunger,
           happiness: status.happiness,
           health: status.health,
           isSick: status.sick,
           statsUpdatedAt: now,
         });
+        if (!updated) continue;
         if (status.sick && !row.animal.isSick) sick += 1;
 
         if (status.hungry) {
@@ -411,32 +442,40 @@ export const jobs: JobDefinition[] = [
       const rate = getBalance().bank.tiers[0]?.interestRate ?? 0.01;
       const minimumBalance = Math.max(1, Math.ceil(1 / Math.max(rate, 0.0001)));
 
-      const accounts = await economyRepo.findAccountsForInterest(
-        new Date(Date.now() - 86_400_000),
-        500,
-        minimumBalance,
-      );
+      // Un seul instant pour la borne ET l'horodatage : voir `bank-interest.ts`.
       const now = new Date();
+      const cutoff = interestCutoff(now);
       const { withTransaction } = await import('../db/client');
+      let processed = 0;
       let total = 0;
       let skipped = 0;
 
-      for (const account of accounts) {
-        const raw = Math.floor(account.balance * Number(account.interestRate));
-        const interest = Math.min(raw, account.interestCap);
-        if (interest <= 0) {
-          // Échéance repoussée quand même : sans cela le compte est re-servi
-          // demain, et après-demain, à la place d'un compte éligible.
-          await economyRepo.skipInterest(account.id, now);
-          skipped += 1;
-          continue;
+      // Par lots, jusqu'à épuisement : chaque compte traité (payé ou écarté)
+      // est horodaté `now` et sort donc du filtre. Le plafond de tours évite
+      // une boucle sans fin si une écriture échouait silencieusement.
+      for (let round = 0; round < 50; round += 1) {
+        const accounts = await economyRepo.findAccountsForInterest(cutoff, 500, minimumBalance);
+        if (accounts.length === 0) break;
+
+        for (const account of accounts) {
+          const raw = Math.floor(account.balance * Number(account.interestRate));
+          const interest = Math.min(raw, account.interestCap);
+          if (interest <= 0) {
+            // Échéance repoussée quand même : sans cela le compte est re-servi
+            // demain, et après-demain, à la place d'un compte éligible.
+            await economyRepo.skipInterest(account.id, now, cutoff);
+            skipped += 1;
+            continue;
+          }
+          const paid = await withTransaction((tx) =>
+            economyRepo.applyInterest(account.id, interest, now, cutoff, tx),
+          );
+          if (paid) total += interest;
         }
-        await withTransaction(async (tx) => {
-          await economyRepo.applyInterest(account.id, interest, now, tx);
-        });
-        total += interest;
+        processed += accounts.length;
+        if (accounts.length < 500) break;
       }
-      return `${accounts.length} accounts, ${total} coins of interest, ${skipped} skipped`;
+      return `${processed} accounts, ${total} coins of interest, ${skipped} skipped`;
     },
   },
 

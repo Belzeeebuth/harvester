@@ -1,10 +1,20 @@
-import { SlashCommandBuilder } from 'discord.js';
-import { COLORS, baseEmbed } from '../framework/ui';
+import { ButtonStyle, SlashCommandBuilder } from 'discord.js';
+import { COLORS, baseEmbed, button, row, select, selectRow } from '../framework/ui';
 import { safeReply } from '../framework/interaction';
+import type { View } from '../framework/views';
 import { SEASON_LABELS } from '../game/world';
+import * as eventService from '../services/event.service';
+import { describeItems } from '../services/inventory.service';
 import { describeNextSeason, getWorldState } from '../services/world.service';
-import { discordTimestamp, formatPercent, progressBar, truncate } from '../utils/format';
-import type { Command } from '../types';
+import {
+  discordTimestamp,
+  formatCoins,
+  formatNumber,
+  formatPercent,
+  progressBar,
+  truncate,
+} from '../utils/format';
+import type { Command, CommandContext } from '../types';
 
 /** Météo, saisons, événements et encyclopédie générale. */
 
@@ -138,112 +148,219 @@ const saison: Command = {
   },
 };
 
+/** Monnaie d'un article de boutique d'événement : icône de jeton, ou pièces. */
+function eventPrice(
+  amount: number,
+  currencyItemKey: string | null,
+  context: Pick<CommandContext, 'config' | 'locale'>,
+): string {
+  if (!currencyItemKey) return formatCoins(amount, false, context.locale);
+  const currency = context.config.items.get(currencyItemKey);
+  return `${formatNumber(amount, context.locale)} ${currency?.emoji ?? '🎟️'}`;
+}
+
+/**
+ * Vue de `/event` : modificateurs, paliers (bouton de réclamation) et boutique
+ * (menu d'achat). Réutilisée par les composants pour se rafraîchir après une
+ * réclamation ou un achat.
+ */
+export async function eventView(context: CommandContext, ownerId: string): Promise<View> {
+  const { t, locale } = context;
+  const world = await getWorldState(context.now, locale);
+
+  if (world.activeEvents.length === 0) {
+    return {
+      embeds: [
+        baseEmbed({
+          title: t('world.event_none_title'),
+          description: t('world.event_none_body', {
+            list: context.config.eventList
+              .filter((event) => event.enabled)
+              .map((event) =>
+                t('world.event_calendar_line', {
+                  name: event.name,
+                  description: event.description,
+                }),
+              )
+              .join('\n'),
+          }),
+          color: COLORS.info,
+        }),
+      ],
+      components: [],
+    };
+  }
+
+  // L'événement « principal » est celui qui a des paliers ou une boutique : un
+  // week-end doublé qui chevauche la Moisson ne doit pas masquer cette dernière.
+  const event =
+    world.activeEvents.find((entry) => entry.rewardTiers.length > 0 || entry.shopItems.length > 0) ??
+    world.activeEvents[0]!;
+  const others = world.activeEvents.filter((entry) => entry.key !== event.key);
+  const status = await eventService.getEventStatus(context.player.id, event, locale);
+
+  const fields = [
+    {
+      name: t('world.event_modifiers_field'),
+      value:
+        [
+          event.modifiers.xpMultiplier
+            ? t('world.event_xp_line', { multiplier: event.modifiers.xpMultiplier })
+            : '',
+          event.modifiers.growthMultiplier
+            ? t('world.event_growth_line', { multiplier: event.modifiers.growthMultiplier })
+            : '',
+          event.modifiers.globalPriceMultiplier
+            ? t('world.event_prices_line', { multiplier: event.modifiers.globalPriceMultiplier })
+            : '',
+          event.modifiers.mutationMultiplier
+            ? t('world.event_mutations_line', { multiplier: event.modifiers.mutationMultiplier })
+            : '',
+          event.modifiers.waterMultiplier
+            ? t('world.event_water_line', { multiplier: event.modifiers.waterMultiplier })
+            : '',
+        ]
+          .filter(Boolean)
+          .join('\n') || t('world.event_modifiers_none'),
+    },
+    {
+      name: t('world.event_progress_field'),
+      value: [
+        t('world.event_points_value', { points: formatNumber(status.points, locale) }),
+        Object.keys(status.balances).length > 0
+          ? t('event.balance_line', {
+              balances: Object.entries(status.balances)
+                .map(([itemKey, amount]) => eventPrice(amount, itemKey, context))
+                .join(' · '),
+            })
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    },
+    {
+      name: t('world.event_reward_tiers_field'),
+      value:
+        event.rewardTiers
+          .map((tier) => {
+            const claimed = status.claimedTiers.includes(tier.points);
+            const rewards = [
+              tier.rewards.coins ? formatCoins(tier.rewards.coins, true, locale) : '',
+              tier.rewards.gems ? `${tier.rewards.gems} 💎` : '',
+              tier.rewards.items?.length ? describeItems(tier.rewards.items, locale) : '',
+              tier.rewards.title
+                ? t('world.event_reward_title_part', { title: tier.rewards.title })
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' · ');
+            return t('world.event_tier_line', {
+              icon: claimed ? '✅' : status.points >= tier.points ? '🎁' : '🔒',
+              points: formatNumber(tier.points, locale),
+              rewards,
+            });
+          })
+          .join('\n') || t('world.event_no_tier'),
+    },
+  ];
+
+  if (status.shop.length > 0) {
+    fields.push({
+      name: t('event.shop_field'),
+      value: truncate(
+        status.shop
+          .map((entry) =>
+            t('event.shop_line', {
+              emoji: entry.emoji,
+              name: entry.name,
+              price: eventPrice(entry.price, entry.currencyItemKey, context),
+              remaining: entry.remaining,
+              limit: entry.limit,
+            }),
+          )
+          .join('\n'),
+        1000,
+      ),
+    });
+  }
+  if (others.length > 0) {
+    fields.push({
+      name: t('event.also_active_field'),
+      value: others.map((entry) => entry.name).join(' · '),
+    });
+  }
+
+  const components: Array<ReturnType<typeof row> | ReturnType<typeof selectRow>> = [];
+  if (status.claimableTiers.length > 0) {
+    components.push(
+      row(
+        button({
+          namespace: 'event',
+          action: 'claim',
+          ownerId,
+          params: [event.key],
+          label: t('event.claim_button', { count: status.claimableTiers.length }),
+          emoji: '🎁',
+          style: ButtonStyle.Success,
+        }),
+      ),
+    );
+  }
+  if (status.shop.length > 0) {
+    components.push(
+      selectRow(
+        select({
+          namespace: 'event',
+          action: 'buy',
+          ownerId,
+          params: [event.key],
+          placeholder: t('event.buy_placeholder'),
+          choices: status.shop.slice(0, 25).map((entry) => ({
+            label: truncate(
+              `${entry.name} · ${eventPrice(entry.price, entry.currencyItemKey, context)}`,
+              100,
+            ),
+            value: entry.itemKey,
+            emoji: entry.emoji,
+            description: truncate(
+              entry.remaining > 0
+                ? t('event.buy_option_description', { remaining: entry.remaining, limit: entry.limit })
+                : t('event.buy_option_sold_out'),
+              100,
+            ),
+          })),
+        }),
+      ),
+    );
+  }
+
+  return {
+    embeds: [
+      baseEmbed({
+        title: `🎪 ${event.name}`,
+        description: event.endsAt
+          ? `${event.description}\n${t('event.ends_line', { relative: discordTimestamp(new Date(event.endsAt), 'R') })}`
+          : event.description,
+        color: COLORS.gold,
+        fields,
+      }),
+    ],
+    components,
+  };
+}
+
 const evenement: Command = {
   category: 'monde',
   requiresAccount: false,
   cooldown: { seconds: 5 },
   data: new SlashCommandBuilder()
     .setName('event')
-    .setDescription('Active event and its rewards')
+    .setDescription('Active event: rewards to claim and event shop')
     .toJSON(),
 
   async execute(interaction, context): Promise<void> {
     await interaction.deferReply();
-    const world = await getWorldState(context.now, context.locale);
-
-    if (world.activeEvents.length === 0) {
-      await interaction.editReply({
-        embeds: [
-          baseEmbed({
-            title: context.t('world.event_none_title'),
-            description: context.t('world.event_none_body', {
-              list: context.config.eventList
-                .filter((event) => event.enabled)
-                .map((event) =>
-                  context.t('world.event_calendar_line', {
-                    name: event.name,
-                    description: event.description,
-                  }),
-                )
-                .join('\n'),
-            }),
-            color: COLORS.info,
-          }),
-        ],
-      });
-      return;
-    }
-
-    const event = world.activeEvents[0]!;
-    const progress = await (
-      await import('../repositories/progression.repo')
-    ).getUserEvent(context.player.id, event.key);
-
-    await interaction.editReply({
-      embeds: [
-        baseEmbed({
-          title: `🎪 ${event.name}`,
-          description: event.description,
-          color: COLORS.gold,
-          fields: [
-            {
-              name: context.t('world.event_modifiers_field'),
-              value:
-                [
-                  event.modifiers.xpMultiplier
-                    ? context.t('world.event_xp_line', { multiplier: event.modifiers.xpMultiplier })
-                    : '',
-                  event.modifiers.growthMultiplier
-                    ? context.t('world.event_growth_line', {
-                        multiplier: event.modifiers.growthMultiplier,
-                      })
-                    : '',
-                  event.modifiers.globalPriceMultiplier
-                    ? context.t('world.event_prices_line', {
-                        multiplier: event.modifiers.globalPriceMultiplier,
-                      })
-                    : '',
-                  event.modifiers.mutationMultiplier
-                    ? context.t('world.event_mutations_line', {
-                        multiplier: event.modifiers.mutationMultiplier,
-                      })
-                    : '',
-                  event.modifiers.waterMultiplier
-                    ? context.t('world.event_water_line', {
-                        multiplier: event.modifiers.waterMultiplier,
-                      })
-                    : '',
-                ]
-                  .filter(Boolean)
-                  .join('\n') || context.t('world.event_modifiers_none'),
-            },
-            {
-              name: context.t('world.event_progress_field'),
-              value: context.t('world.event_points_value', { points: progress?.points ?? 0 }),
-            },
-            {
-              name: context.t('world.event_reward_tiers_field'),
-              value:
-                event.rewardTiers
-                  .map((tier) => {
-                    const claimed = (progress?.claimedTiers ?? []).includes(tier.points);
-                    const rewards = [
-                      tier.rewards.coins ? `${tier.rewards.coins} 🪙` : '',
-                      tier.rewards.gems ? `${tier.rewards.gems} 💎` : '',
-                      tier.rewards.title
-                        ? context.t('world.event_reward_title_part', { title: tier.rewards.title })
-                        : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' · ');
-                    return `${claimed ? '✅' : (progress?.points ?? 0) >= tier.points ? '🎁' : '🔒'} **${tier.points} pts** · ${rewards}`;
-                  })
-                  .join('\n') || context.t('world.event_no_tier'),
-            },
-          ],
-        }),
-      ],
-    });
+    await interaction.editReply(await eventView(context, interaction.user.id));
   },
 };
 

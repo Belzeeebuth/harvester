@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, or, sql } from 'drizzle-orm';
 import { getDb, type Executor } from '../db/client';
 import {
   achievementsConfig,
@@ -8,6 +8,7 @@ import {
   userEvents,
   userQuests,
   userSeasonPass,
+  users,
 } from '../db/schema';
 import { uuidv7 } from '../utils/uuid';
 
@@ -50,6 +51,41 @@ export async function listUserQuests(
     .orderBy(asc(userQuests.slotIndex), asc(userQuests.assignedAt));
 }
 
+/**
+ * Quêtes utiles à l'assignation d'un cycle : celles du cycle journalier et
+ * hebdomadaire courants, plus la chaîne narrative. Évite de relire tout
+ * l'historique du joueur (des centaines de lignes réclamées) à chaque action.
+ */
+export async function listCycleQuests(
+  userId: string,
+  cycleKeys: string[],
+  executor: Executor = getDb(),
+): Promise<UserQuestRow[]> {
+  return executor
+    .select()
+    .from(userQuests)
+    .where(
+      and(
+        eq(userQuests.userId, userId),
+        or(inArray(userQuests.cycleKey, cycleKeys), eq(userQuests.type, 'story')),
+      ),
+    )
+    .orderBy(asc(userQuests.slotIndex), asc(userQuests.assignedAt));
+}
+
+/** Niveau courant d'un joueur, lu dans la transaction de l'appelant. */
+export async function getUserLevel(
+  userId: string,
+  executor: Executor = getDb(),
+): Promise<number | undefined> {
+  const [row] = await executor
+    .select({ level: users.level })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return row?.level;
+}
+
 export async function assignQuests(
   rows: Array<Omit<typeof userQuests.$inferInsert, 'id'>>,
   executor: Executor = getDb(),
@@ -59,6 +95,15 @@ export async function assignQuests(
     .insert(userQuests)
     .values(rows.map((row) => ({ id: uuidv7(), ...row })))
     .onConflictDoNothing();
+}
+
+/**
+ * Quête encore dans son cycle. Le job `quests:expire` ne passe qu'à 00:10 UTC
+ * alors que journalières et hebdomadaires échoient à minuit (heure de Paris) :
+ * sans ce filtre, une quête échue progresse et se réclame pendant ce battement.
+ */
+function notExpired() {
+  return sql`(${userQuests.expiresAt} IS NULL OR ${userQuests.expiresAt} > now())`;
 }
 
 /**
@@ -93,6 +138,7 @@ export async function progressQuests(
       and(
         eq(userQuests.userId, userId),
         eq(userQuests.status, 'active'),
+        notExpired(),
         sql`${userQuests.snapshot}->>'objectiveType' = ${objectiveType}`,
         // La cible de la quête doit être un SOUS-ENSEMBLE de l'action réalisée.
         sql`${JSON.stringify(cleanTarget)}::jsonb @> (${userQuests.snapshot}->'objectiveTarget')`,
@@ -138,6 +184,7 @@ export async function setQuestProgress(
       and(
         eq(userQuests.userId, userId),
         eq(userQuests.status, 'active'),
+        notExpired(),
         sql`${userQuests.snapshot}->>'objectiveType' = ${objectiveType}`,
       ),
     );
@@ -165,23 +212,46 @@ export async function markQuestClaimed(
   const result = await executor
     .update(userQuests)
     .set({ status: 'claimed', claimedAt: now, updatedAt: now })
-    .where(and(eq(userQuests.id, questId), eq(userQuests.status, 'completed')));
+    .where(
+      and(
+        eq(userQuests.id, questId),
+        eq(userQuests.status, 'completed'),
+        sql`(${userQuests.expiresAt} IS NULL OR ${userQuests.expiresAt} > ${now})`,
+      ),
+    );
   return (result.rowCount ?? 0) > 0;
 }
 
+/**
+ * Remplace une quête journalière relancée.
+ *
+ * L'ancienne ligne n'est PAS supprimée : elle passe en `failed` avec
+ * `rerolled = true` et sert de témoin pour `countRerollsToday`. Supprimer puis
+ * réinsérer faisait disparaître le témoin, le compteur restait à zéro, et la
+ * limite quotidienne comme le coût croissant ne s'appliquaient jamais. Garder
+ * la ligne empêche aussi de retirer la même quête dans le cycle (index unique).
+ */
 export async function replaceQuest(
   questId: string,
   replacement: Omit<typeof userQuests.$inferInsert, 'id'>,
   executor: Executor,
 ): Promise<UserQuestRow | undefined> {
-  await executor.delete(userQuests).where(eq(userQuests.id, questId));
+  const now = new Date();
+  const retired = await executor
+    .update(userQuests)
+    .set({ status: 'failed', rerolled: true, updatedAt: now })
+    .where(and(eq(userQuests.id, questId), eq(userQuests.status, 'active')));
+  if ((retired.rowCount ?? 0) === 0) return undefined;
   const [row] = await executor
     .insert(userQuests)
+    // `rerolled` marque aussi la remplaçante (affichage) ; seul le statut
+    // `failed` distingue le témoin compté par `countRerollsToday`.
     .values({ id: uuidv7(), ...replacement, rerolled: true })
     .returning();
   return row;
 }
 
+/** Relances du jour : une ligne témoin `failed` + `rerolled` par relance. */
 export async function countRerollsToday(
   userId: string,
   cycleKey: string,
@@ -194,7 +264,9 @@ export async function countRerollsToday(
       and(
         eq(userQuests.userId, userId),
         eq(userQuests.cycleKey, cycleKey),
+        eq(userQuests.type, 'daily'),
         eq(userQuests.rerolled, true),
+        eq(userQuests.status, 'failed'),
       ),
     );
   return row?.count ?? 0;
@@ -568,19 +640,55 @@ export async function grantPassPremium(
 // Événements
 // ---------------------------------------------------------------------------
 
+/**
+ * Occurrence d'un événement récurrent, rangée dans `progress.occurrence`.
+ * `user_events` n'a qu'une ligne par (joueur, événement) : sans cette marque,
+ * les points de la Moisson 2026 s'ajoutaient à ceux de 2027 et les paliers
+ * réclamés une année restaient bloqués pour toujours.
+ */
+export interface UserEventProgress {
+  occurrence?: string;
+  /** Achats de la boutique d'événement pour cette occurrence, par objet. */
+  purchases?: Record<string, number>;
+}
+
+export type UserEventRow = typeof userEvents.$inferSelect;
+
 export async function addEventPoints(
   userId: string,
   eventKey: string,
   points: number,
   executor: Executor = getDb(),
+  occurrence?: string,
 ): Promise<{ points: number } | undefined> {
   if (points <= 0) return undefined;
+  if (occurrence === undefined) {
+    const [row] = await executor
+      .insert(userEvents)
+      .values({ id: uuidv7(), userId, eventKey, points })
+      .onConflictDoUpdate({
+        target: [userEvents.userId, userEvents.eventKey],
+        set: { points: sql`${userEvents.points} + ${points}`, updatedAt: new Date() },
+      })
+      .returning({ points: userEvents.points });
+    return row;
+  }
+
+  // Nouvelle occurrence : la ligne repart de zéro (points, paliers, achats).
+  // Toutes les expressions du SET lisent l'ANCIENNE ligne, d'où la même
+  // condition répétée.
+  const stale = sql`(${userEvents.progress}->>'occurrence') IS DISTINCT FROM ${occurrence}`;
   const [row] = await executor
     .insert(userEvents)
-    .values({ id: uuidv7(), userId, eventKey, points })
+    .values({ id: uuidv7(), userId, eventKey, points, progress: { occurrence } })
     .onConflictDoUpdate({
       target: [userEvents.userId, userEvents.eventKey],
-      set: { points: sql`${userEvents.points} + ${points}`, updatedAt: new Date() },
+      set: {
+        points: sql`CASE WHEN ${stale} THEN ${points} ELSE ${userEvents.points} + ${points} END`,
+        claimedTiers: sql`CASE WHEN ${stale} THEN ARRAY[]::integer[] ELSE ${userEvents.claimedTiers} END`,
+        progress: sql`CASE WHEN ${stale} THEN jsonb_build_object('occurrence', ${occurrence}::text) ELSE ${userEvents.progress} END`,
+        updatedAt: new Date(),
+      },
     })
     .returning({ points: userEvents.points });
   return row;
@@ -599,6 +707,43 @@ export async function getUserEvent(
   return row;
 }
 
+/**
+ * Crée si besoin puis VERROUILLE la ligne d'événement du joueur, remise à zéro
+ * si elle date d'une occurrence précédente. Point d'entrée des réclamations et
+ * des achats : tout ce qui suit dans la transaction lit une ligne à jour.
+ */
+export async function lockUserEventOccurrence(
+  tx: Executor,
+  userId: string,
+  eventKey: string,
+  occurrence: string,
+): Promise<UserEventRow> {
+  await tx
+    .insert(userEvents)
+    .values({ id: uuidv7(), userId, eventKey, points: 0, progress: { occurrence } })
+    .onConflictDoNothing({ target: [userEvents.userId, userEvents.eventKey] });
+  const [row] = await tx
+    .select()
+    .from(userEvents)
+    .where(and(eq(userEvents.userId, userId), eq(userEvents.eventKey, eventKey)))
+    .limit(1)
+    .for('update');
+  if (!row) throw new Error(`user_events introuvable après insertion (${eventKey})`);
+  if ((row.progress as UserEventProgress | null)?.occurrence === occurrence) return row;
+
+  const [reset] = await tx
+    .update(userEvents)
+    .set({ points: 0, tier: 0, claimedTiers: [], progress: { occurrence }, updatedAt: new Date() })
+    .where(eq(userEvents.id, row.id))
+    .returning();
+  return reset ?? row;
+}
+
+/**
+ * Marque un palier (identifié par son seuil de points) comme réclamé.
+ * Idempotent et sûr en concurrence : la clause exige que le palier soit
+ * atteint et pas encore réclamé, une seconde réclamation ne touche aucune ligne.
+ */
 export async function claimEventTier(
   userId: string,
   eventKey: string,
@@ -612,10 +757,36 @@ export async function claimEventTier(
       and(
         eq(userEvents.userId, userId),
         eq(userEvents.eventKey, eventKey),
+        sql`${userEvents.points} >= ${tier}`,
         sql`NOT (${tier} = ANY(${userEvents.claimedTiers}))`,
       ),
     );
   return (result.rowCount ?? 0) > 0;
+}
+
+/** Enregistre un achat en boutique d'événement (ligne déjà verrouillée). */
+export async function recordEventPurchase(
+  tx: Executor,
+  rowId: string,
+  itemKey: string,
+  quantity: number,
+): Promise<void> {
+  await tx
+    .update(userEvents)
+    .set({
+      progress: sql`jsonb_set(
+        jsonb_set(${userEvents.progress}, '{purchases}', COALESCE(${userEvents.progress}->'purchases', '{}'::jsonb)),
+        ARRAY['purchases', ${itemKey}::text],
+        to_jsonb(COALESCE((${userEvents.progress}->'purchases'->>${itemKey}::text)::int, 0) + ${quantity}::int)
+      )`,
+      updatedAt: new Date(),
+    })
+    .where(eq(userEvents.id, rowId));
+}
+
+/** Titre de profil accordé par une récompense d'événement. */
+export async function setUserTitle(tx: Executor, userId: string, title: string): Promise<void> {
+  await tx.update(users).set({ title }).where(eq(users.id, userId));
 }
 
 // ---------------------------------------------------------------------------

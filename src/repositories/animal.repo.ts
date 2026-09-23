@@ -144,6 +144,36 @@ export async function killAnimal(
     .where(eq(ownedAnimals.id, animalId));
 }
 
+/**
+ * Écrit le résultat du job de décroissance SEULEMENT si l'animal n'a pas bougé
+ * depuis la lecture : vivant, et `stats_updated_at` inchangé. Toute action du
+ * joueur (nourrir, soigner, caresser, récolter) réécrit cet horodatage ; sans
+ * ce garde-fou, un animal nourri entre-temps retrouvait sa faim d'avant, et un
+ * animal tout juste soigné mourait quand même.
+ *
+ * La comparaison se fait à la milliseconde : PostgreSQL stocke la microseconde
+ * alors qu'une `Date` JavaScript s'arrête à la milliseconde. Une égalité
+ * stricte échouerait donc toujours sur une valeur posée par `now()` en SQL.
+ */
+export async function applyDecayIfUnchanged(
+  animalId: string,
+  seenStatsUpdatedAt: Date,
+  patch: Partial<typeof ownedAnimals.$inferInsert>,
+  executor: Executor = getDb(),
+): Promise<boolean> {
+  const result = await executor
+    .update(ownedAnimals)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(
+      and(
+        eq(ownedAnimals.id, animalId),
+        eq(ownedAnimals.isAlive, true),
+        sql`date_trunc('milliseconds', ${ownedAnimals.statsUpdatedAt}) = ${seenStatsUpdatedAt}`,
+      ),
+    );
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function deleteAnimal(animalId: string, executor: Executor): Promise<void> {
   await executor.delete(ownedAnimals).where(eq(ownedAnimals.id, animalId));
 }

@@ -1,0 +1,11 @@
+{
+  "$comment": "Renaissance : blocages avant la remise à zéro. Fragment fusionné avec fr.json au chargement ; mêmes clés que en/prestige.json.",
+  "errors": {
+    "player": {
+      "prestige_blocked": "Impossible de renaître pour l'instant : des biens sont encore hors de votre inventaire et échapperaient à la remise à zéro. Réglez d'abord :\n• {reasons}",
+      "prestige_blocked_hint": "Relancez `/prestige` ensuite.",
+      "prestige_blocker_bids": "{count} enchère(s) en cours sur l'hôtel des ventes : attendez la clôture des annonces",
+      "prestige_blocker_crafts": "{count} fabrication(s) en cours ou à récupérer : attendez leur fin puis collectez-les depuis `/production`"
+    }
+  }
+}

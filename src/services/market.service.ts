@@ -17,11 +17,13 @@ import { translatorFor, DEFAULT_LOCALE } from '../i18n';
 import { moduleLogger } from '../utils/logger';
 import * as economyRepo from '../repositories/economy.repo';
 import * as inventoryRepo from '../repositories/inventory.repo';
+import * as socialRepo from '../repositories/social.repo';
 import * as inventoryService from './inventory.service';
 import * as economyService from './economy.service';
 import * as alertService from './alert.service';
 import { mergeResults, trackAction, type TrackResult } from './tracker.service';
 import { eventPriceMultiplier, getWorldState } from './world.service';
+import { getFarmModifiers } from './player.service';
 import { toSqlDate } from '../utils/time';
 import { uuidv7 } from '../utils/uuid';
 import type { PlayerContext } from '../types';
@@ -150,6 +152,23 @@ export interface SellResult {
 }
 
 /**
+ * Bonus de vente du joueur : cheval, âne (bonus passifs d'élevage), niveau de
+ * coopérative et multiplicateur économique global, tels que les agrège
+ * `buildModifiers`. Il n'était appliqué qu'à l'ESTIMATION affichée à la
+ * récolte (`computeHarvest`) : `/sell` l'ignorait, et ces animaux ne
+ * rapportaient rien.
+ */
+async function saleBonusOf(player: PlayerContext): Promise<number> {
+  let coopLevel = 0;
+  if (player.coopId) {
+    const coop = await socialRepo.findCoopById(player.coopId);
+    coopLevel = coop?.level ?? 0;
+  }
+  const modifiers = await getFarmModifiers(player, { coopLevel });
+  return modifiers.sellBonus;
+}
+
+/**
  * Vend un objet (ou tout l'inventaire d'une catégorie) au village.
  *
  * La vente directe applique une décote de 15 % par rapport au prix du marché :
@@ -171,6 +190,7 @@ export async function sell(
   const config = getConfig(player.locale);
   const balance = getBalance();
   const world = await getWorldState();
+  const sellBonus = await saleBonusOf(player);
 
   return withTransaction(async (tx) => {
     await lockUserRow(tx, player.id);
@@ -220,7 +240,8 @@ export async function sell(
         directSellPrice(marketPrice, balance),
         qualityMultiplier(stack.quality, balance) *
           mutationMultiplier *
-          eventPriceMultiplier(world, stack.itemKey, item.category),
+          eventPriceMultiplier(world, stack.itemKey, item.category) *
+          (1 + sellBonus),
       );
 
       const total = unitPrice * quantity;

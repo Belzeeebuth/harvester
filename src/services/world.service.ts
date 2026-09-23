@@ -1,6 +1,8 @@
 import { balance as getBalance, getConfig, type EventConfig } from '../config';
 import { env } from '../config/env';
+import { getDb } from '../db/client';
 import { cacheGet, cacheSet, key as redisKey } from '../db/redis';
+import { seasonPass } from '../db/schema';
 import { currentEventWindow } from '../game/events';
 import { seasonAt, nextSeason, rollWeather, type SeasonState, type WeatherState } from '../game/world';
 import * as systemRepo from '../repositories/system.repo';
@@ -203,6 +205,16 @@ function aggregateEventModifiers(events: EventConfig[]): WorldState['eventModifi
   return result;
 }
 
+/**
+ * Clé de l'occurrence en cours d'un événement actif : le début de sa fenêtre
+ * pour un événement récurrent ou daté, une constante pour un événement
+ * permanent. Sert à remettre à zéro points, paliers et achats d'une année sur
+ * l'autre (voir `progressionRepo.lockUserEventOccurrence`).
+ */
+export function eventOccurrenceKey(event: Pick<EventConfig, 'startsAt'>): string {
+  return event.startsAt ?? 'permanent';
+}
+
 /** Multiplicateur de prix appliqué à un objet par les événements actifs. */
 export function eventPriceMultiplier(
   world: WorldState,
@@ -236,6 +248,39 @@ export async function ensureSeasonCalendar(now: Date = new Date()): Promise<void
   }
 
   await systemRepo.setActiveSeason(seasonAt(now, balance).key);
+  await ensureSeasonPasses();
+}
+
+/**
+ * Recopie les passes de `season-pass.json` dans la table `season_pass`.
+ *
+ * `user_season_pass` référence cette table par clé étrangère : un passe ajouté
+ * à la configuration mais absent de la base ferait échouer `addPassXp`, donc
+ * TOUTE transaction de récolte, d'artisanat ou d'élevage qui accorde de l'XP de
+ * passe. Le seed le faisait, mais seulement quand on pensait à le lancer ; ce
+ * rattrapage tourne au démarrage et chaque jour avec le calendrier des saisons.
+ * Idempotent (UPSERT sur l'identifiant), mêmes valeurs que `scripts/seed.ts`.
+ */
+export async function ensureSeasonPasses(): Promise<void> {
+  const db = getDb();
+  for (const pass of getConfig().seasonPasses) {
+    const values = {
+      id: pass.id,
+      seasonKey: pass.seasonKey,
+      name: pass.name,
+      description: pass.description,
+      startsAt: new Date(pass.startsAt),
+      endsAt: new Date(pass.endsAt),
+      maxTier: pass.maxTier,
+      xpPerTier: pass.xpPerTier,
+      tiers: pass.tiers,
+      active: pass.active,
+    };
+    await db
+      .insert(seasonPass)
+      .values(values)
+      .onConflictDoUpdate({ target: seasonPass.id, set: { ...values, updatedAt: new Date() } });
+  }
 }
 
 export function describeNextSeason(now: Date = new Date()): SeasonState {

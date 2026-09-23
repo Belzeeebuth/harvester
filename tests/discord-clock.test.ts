@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   LATE_INTERACTION_MS,
+  clockOffsetEstimate,
   clockOffsetMs,
+  formatClockOffset,
   observeInteraction,
   resetDiscordClock,
   toLocalClock,
@@ -84,5 +86,20 @@ describe('décalage d’horloge', () => {
     receive(DISCORD_T0, 50, 0, 0);
     receive(DISCORD_T0 + 1_000, 50, 1_000, -30_000);
     expect(clockOffsetMs()).toBe(-30_000 + 50);
+  });
+});
+
+describe('jauge du décalage sans trafic', () => {
+  it('oublie une mesure trop ancienne même sans nouvelle interaction', () => {
+    receive(DISCORD_T0, 20, 0);
+    expect(clockOffsetEstimate(60_000)).toBe(SKEW + 20);
+    // Six minutes plus tard, aucune interaction : la mesure est périmée.
+    expect(clockOffsetEstimate(360_001)).toBeUndefined();
+    expect(clockOffsetMs(360_001)).toBe(0);
+  });
+
+  it('exporte NaN plutôt qu’une valeur périmée', () => {
+    expect(formatClockOffset(undefined)).toBe('NaN');
+    expect(formatClockOffset(-116_421.4)).toBe('-116421');
   });
 });
