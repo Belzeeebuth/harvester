@@ -1,6 +1,7 @@
 import { getConfig, type ItemConfig, localizeRows} from '../config';
 import { getDb, type Executor } from '../db/client';
 import { gameError } from '../utils/errors';
+import { resolveLookup } from '../utils/lookup';
 import * as inventoryRepo from '../repositories/inventory.repo';
 import * as playerRepo from '../repositories/player.repo';
 import * as collectionService from './collection.service';
@@ -34,6 +35,45 @@ export function requireItem(itemKey: string, locale?: string): ItemConfig {
     });
   }
   return item;
+}
+
+/**
+ * Clé d'objet correspondant à une saisie libre (clé, ou nom français ou
+ * anglais, sans casse ni accents), limitée aux objets acceptés par `filter`.
+ * Rend la saisie telle quelle si rien ne correspond : l'appelant garde alors
+ * son refus habituel (« objet inconnu », « rien à vendre »).
+ */
+export function resolveItemInput(raw: string, filter: (item: ItemConfig) => boolean = () => true): string {
+  const french = getConfig();
+  const english = getConfig('en');
+  const candidates = french.itemList
+    .filter((item) => item.enabled && filter(item))
+    .map((item) => {
+      // Une graine répond aussi au nom de sa culture (« blé » → graines de blé).
+      const crop = item.category === 'seed' && item.sourceKey ? item.sourceKey : undefined;
+      return {
+        key: item.key,
+        names: [item.name, english.items.get(item.key)?.name ?? item.name],
+        aliases: crop
+          ? [french.crops.get(crop)?.name, english.crops.get(crop)?.name].filter(
+              (name): name is string => Boolean(name),
+            )
+          : [],
+      };
+    });
+  return resolveLookup(raw, candidates) ?? raw.trim();
+}
+
+/** Clé de culture correspondant à une saisie libre (voir `resolveItemInput`). */
+export function resolveCropInput(raw: string): string {
+  const english = getConfig('en').crops;
+  const candidates = getConfig()
+    .cropList.filter((crop) => crop.enabled)
+    .map((crop) => ({
+      key: crop.key,
+      names: [crop.name, english.get(crop.key)?.name ?? crop.nameEn ?? crop.name],
+    }));
+  return resolveLookup(raw, candidates) ?? raw.trim();
 }
 
 export async function getPage(

@@ -1,7 +1,7 @@
 {
   "$comment": "Collection du fermier (/collection) et variantes d'animaux (shiny, dorée). Fragment fusionné avec fr.json au chargement ; même arborescence que en/collection.json. Les blocs animals.* et render_alt.* complètent des espaces de noms existants (fusion profonde).",
   "collection": {
-    "title": "📚 Collection de {name}",
+    "title": "📚 Collection · {name}",
     "kind": {
       "crop": "Cultures",
       "product": "Produits",

@@ -1,0 +1,34 @@
+{
+  "$comment": "Level-up block shared by every XP source (framework/levelup.ts) and unlock levels shown by /help and lock messages.",
+  "levelup": {
+    "title": "🎉 Level {level} reached",
+    "title_multi": "🎉 Level {level} reached (+{gained} levels)",
+    "reward_line": "Reward: {rewards}",
+    "unlocked_header": "**New unlocks**",
+    "group_line": "{label}: {list}",
+    "more": " · and {count} more",
+    "tier_name": "{name} tier {tier}",
+    "next_line": "-# Next unlock at level {level}: {list}",
+    "no_unlock": "Keep it up.",
+    "groups": {
+      "feature": "✨ Features",
+      "crop": "🌱 Crops",
+      "animal": "🐄 Animals",
+      "building": "🏗️ Buildings",
+      "building_tier": "⬆️ Upgrades",
+      "recipe": "🛠️ Recipes",
+      "item": "🧰 Shop",
+      "pet": "🐾 Companions"
+    },
+    "features": {
+      "trade": "trading and the auction house (`/trade`, `/auction`)",
+      "gift": "gifts (`/gift`)",
+      "coop_create": "creating a co-op (`/coop create`)",
+      "fishing": "fishing (`/fish`)",
+      "mining": "mining (`/mine`)",
+      "black_market": "black market (`/black-market`)",
+      "prestige": "rebirth (`/prestige`)",
+      "bank_tier": "bank tier {tier} (`/bank`)"
+    }
+  }
+}

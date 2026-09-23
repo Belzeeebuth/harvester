@@ -95,7 +95,6 @@
     "unlimited": "illimité",
     "enabled": "activé",
     "disabled": "désactivé",
-    "level_up_title": "🎉 Niveau supérieur !",
     "tracking_quest_completed": "📋 Quêtes terminées : {quests}. Réclamez avec `/quests`.",
     "tracking_achievement_unlocked": "🏆 Succès débloqués : {achievements}",
     "tracking_coop_objective": "🤝 Objectifs coop atteints : {objectives}"
@@ -114,12 +113,12 @@
   },
   "start": {
     "welcome_title": "🌾 Bienvenue à Val-Verdoyant !",
-    "welcome_body": "Le maire vous confie une parcelle en friche et **{coins}**.\n\nSemez, récoltez, vendez, puis recommencez en plus grand.\n\nPour commencer :\n`/plant seed:Wheat` : semer\n`/farm` : voir vos parcelles\n`/harvest` : récolter\n\nUn doute ? `/help` a les réponses, `/tutorial` vous guide pas à pas.",
+    "welcome_body": "Le maire vous confie une parcelle en friche et **{coins}**.\n\nSemez, récoltez, vendez, puis recommencez en plus grand.\n\nPour commencer :\n`/plant seed:{seed}` : semer\n`/farm` : voir vos parcelles\n`/harvest` : récolter\n\nUn doute ? `/help` a les réponses, `/tutorial` vous guide pas à pas.",
     "already_registered": "Vous avez déjà une ferme. `/farm` pour la consulter.",
     "already_title": "🌾 Vous avez déjà une ferme",
     "already_body": "`/farm` pour la consulter, `/quests` pour les objectifs du jour, `/help` en cas de doute.",
     "starter_kit": "Sac de départ",
-    "starter_kit_body": "• 10× 🌾 graines de blé\n• 5× 🥕 graines de carotte\n• 2× 💩 engrais basique\n• 1× 🪣 arrosoir en bois\n• 10× 🌰 grain (pour vos futurs animaux)",
+    "starter_kit_body": "{seeds}\n• 2× 💩 engrais basique\n• 1× 🪣 arrosoir en bois\n• 10× 🌰 grain (pour vos futurs animaux)",
     "estate_field": "🗺️ Votre domaine",
     "estate_body": "• {plots} parcelles (3×3)\n• 📦 Entrepôt niveau 1\n• 🏠 Maison niveau 1 (100 ⚡)",
     "button_tutorial": "Lancer le tutoriel",
@@ -127,7 +126,7 @@
     "button_plant": "Planter maintenant"
   },
   "farm": {
-    "title": "Ferme de {name}",
+    "title": "Ferme · {name}",
     "plot_empty": "Vide",
     "plot_locked": "Verrouillée",
     "plot_ready": "Prête à récolter",
@@ -157,7 +156,7 @@
     "plant_body_slots": "**{count}** parcelle(s) plantée(s) : {slots}",
     "plant_body_harvest": "🌱 Récolte {relative} ({time})",
     "plant_body_water": "💧 Arrosages prévus : {count}",
-    "plant_body_off_season": "⚠️ *Hors saison : croissance plus lente et rendement réduit. Une serre annulerait ce malus.*",
+    "plant_body_off_season": "⚠️ *Hors saison : croissance plus lente et rendement réduit.*",
     "plant_autocomplete": "{emoji} {name} · {owned} graine(s), {minutes} min",
     "harvest_title": "🧺 Récolte",
     "harvest_nothing": "Rien à récolter.",
@@ -166,7 +165,6 @@
     "harvest_withered_title": "💀 Récoltes fanées",
     "harvest_withered_body": "Parcelles {slots} : tout a fané. Récoltez plus tôt.",
     "harvest_seed_store_title": "🫧 Grainerie",
-    "harvest_level_up_body": "Vous avez atteint le **niveau {level}** (+{gained})\nRécompense : {coins}{gems}",
     "rain_title": "🌧️ Il pleut !",
     "rain_body": "Toutes vos parcelles sont arrosées gratuitement aujourd'hui. Économisez votre énergie.",
     "water_title": "💧 Arrosage",
@@ -196,7 +194,7 @@
     "plot_unlocked_body": "Parcelle **{slot}** pour {cost}.\nFerme : {width}×{height}{nextPart}",
     "plot_unlocked_next": "\nProchaine : {cost}",
     "no_seeds_title": "🌱 Aucune graine",
-    "no_seeds_body": "Achetez-en avec `/shop` ou `/buy item:seed_wheat`.",
+    "no_seeds_body": "Achetez-en dans `/shop` ou avec `/buy` (tapez « blé »).",
     "plant_menu_title": "🌱 Que voulez-vous planter ?",
     "plant_menu_body": "La culture choisie sera semée sur chaque parcelle vide.",
     "plant_menu_placeholder": "Choisir une culture",
@@ -348,7 +346,7 @@
     "view_confirm_notice": "Les deux joueurs doivent confirmer. Tout changement remet les confirmations à zéro.",
     "view_expires_line": "Expire {relative} · révision {revision}",
     "your_offer_field": "Votre offre",
-    "their_offer_field": "Offre de {name}",
+    "their_offer_field": "Offre · {name}",
     "nothing_yet": "*rien pour l'instant*",
     "coins_line": "🪙 {coins} pièces",
     "add_item_button": "Ajouter un objet",
@@ -390,7 +388,7 @@
     "referral_was_referred": "Votre parrainage est enregistré."
   },
   "animals": {
-    "title": "🐄 Cheptel de {name}",
+    "title": "🐄 Cheptel · {name}",
     "empty": "Aucun animal. Construisez un poulailler avec `/buildings` puis achetez une poule avec `/buy-animal`.",
     "fed": "🌾 Animaux nourris : {count}.",
     "collected": "🥚 Collecte : {summary}",
@@ -416,7 +414,6 @@
     "feed_body": "Animaux nourris : **{count}**\nConsommé : {items}",
     "collect_title": "🥚 Collecte",
     "collect_total_value": "Produits : **{count}** · **{xp}** ✨{levelUp}",
-    "collect_level_up": "\n⭐ Niveau **{level}** atteint !",
     "heal_title": "{emoji} {name} a été soigné",
     "heal_body": "Vous payez {cost} au vétérinaire.\nSanté remise à **100%**.",
     "pet_title": "{emoji} {name} apprécie",
@@ -435,7 +432,7 @@
     "pet_menu_choice_label": "{name} · bonheur {happiness}%"
   },
   "inventory": {
-    "title": "🎒 Inventaire de {name}",
+    "title": "🎒 Inventaire · {name}",
     "empty": "Votre inventaire est vide.",
     "empty_category": "Aucun objet dans cette catégorie.",
     "capacity": "Capacité : {used}/{total}",
@@ -458,7 +455,7 @@
     "warehouse_field": "Entrepôt"
   },
   "quests": {
-    "title": "📋 Quêtes de {name}",
+    "title": "📋 Quêtes · {name}",
     "daily": "Journalières",
     "weekly": "Hebdomadaires",
     "story": "Histoire",
@@ -520,7 +517,7 @@
     "leave_title": "Départ enregistré",
     "leave_dissolved": "**{name}** a été dissoute (vous étiez le dernier membre).",
     "leave_body": "Vous avez quitté **{name}**.",
-    "members_title": "👥 Membres de {name}",
+    "members_title": "👥 Membres · {name}",
     "members_line": "{index}. **{username}** · {role} · {level}\n     Contribution hebdo : {weekly} · total : {total}",
     "members_footer": "{count}/{limit} membres",
     "invite_title": "Invitation acceptée",
@@ -532,9 +529,9 @@
     "contribute_title": "💰 Contribution",
     "contribute_body": "{amount} versés.\nTrésorerie : **{treasury}**\n+{xp} XP de coopérative{levelUp}",
     "contribute_level_up": " · **niveau {level} atteint !**",
-    "treasury_title": "💰 Trésorerie de {name}",
+    "treasury_title": "💰 Trésorerie · {name}",
     "treasury_body": "**{treasury}**\n\nSeuls le chef et les officiers peuvent retirer des fonds.",
-    "objectives_title": "🎯 Objectifs de {name}",
+    "objectives_title": "🎯 Objectifs · {name}",
     "objectives_line": "**{title}** {check}\n{description}\n{bar} {progress}/{target}\n🎁 {coins} partagés + {gems} 💎 chacun",
     "objective": {
       "harvest_total": {
@@ -631,8 +628,7 @@
     "build_cost_line": "Coût : {cost}",
     "build_capacity_line": "Capacité : **{capacity}**",
     "build_slots_line": "Emplacements de production : **{slots}**",
-    "collect_title": "📦 Production collectée",
-    "recipes_hint": "`/recipes` : la liste complète. `/craft` : démarrer une production."
+    "collect_title": "📦 Production collectée"
   },
   "pets": {
     "list_title": "🐾 Vos compagnons",
@@ -732,7 +728,7 @@
     "next_button": "Suivant",
     "step1": {
       "title": "1/6 · Planter",
-      "body": "Tout commence par une graine.\n\n`/plant seed:Wheat`\n\nSans numéro de parcelle, le bot remplit vos parcelles vides automatiquement. Ajoutez `quantity:9` pour toutes les semer d'un coup."
+      "body": "Tout commence par une graine.\n\n`/plant seed:Blé`\n\nSans numéro de parcelle, le bot sème autant de parcelles vides que vos graines le permettent. Ajoutez `quantity:3` pour vous limiter à trois."
     },
     "step2": {
       "title": "2/6 · Arroser",
@@ -744,15 +740,15 @@
     },
     "step4": {
       "title": "4/6 · Vendre",
-      "body": "Le village achète tout :\n\n`/sell item:Wheat quantity:all`\n\nLes prix bougent chaque heure selon ce que les autres joueurs vendent : vérifiez `/market` avant de tout écouler."
+      "body": "Le village achète tout :\n\n`/sell item:Blé quantity:all`\n\nLes prix bougent chaque heure selon ce que les autres joueurs vendent : vérifiez `/market` avant de tout écouler."
     },
     "step5": {
       "title": "5/6 · Réinvestir",
-      "body": "Vos pièces sont faites pour grandir :\n\n• `/buy-plot` : une parcelle de plus\n• `/shop` : graines, engrais, outils\n• `/buildings` : poulailler, moulin, entrepôt\n• `/buy-animal` : production passive"
+      "body": "Vos pièces sont faites pour grandir :\n\n• `/buy-plot` : une parcelle de plus\n• `/shop` : graines, engrais, outils\n• `/buildings` : poulailler, moulin, entrepôt\n• `/buy-animal` : production passive, dès le niveau {animalLevel}"
     },
     "step6": {
       "title": "6/6 · Progresser",
-      "body": "Chaque jour :\n\n• `/daily` : récompense quotidienne et série\n• `/quests` : 4 quêtes journalières + 3 hebdomadaires\n• `/coop` : rejoignez une coopérative pour des bonus permanents"
+      "body": "Chaque jour :\n\n• `/daily` : récompense quotidienne et série\n• `/quests` : 4 quêtes journalières + 3 hebdomadaires\n• `/coop` : rejoignez une coopérative pour des bonus permanents (en fonder une : niveau {coopLevel})"
     }
   },
   "weather": {
@@ -1300,7 +1296,7 @@
     "streak_value": "{count} jour(s)",
     "field_achievements": "🏆 Succès",
     "stats_button": "Stats",
-    "stats_title": "📊 Stats de {name}",
+    "stats_title": "📊 Stats · {name}",
     "stats_agriculture_field": "🌾 Agriculture",
     "stats_harvests_line": "Récoltes : **{count}**",
     "stats_planted_line": "Graines plantées : **{count}**",
@@ -1324,12 +1320,11 @@
     "stats_inventory_line": "Inventaire : **{count}** objets",
     "stats_created_line": "Ferme créée le **{date}**",
     "stats_prestige_line": "Prestige : **{count}** {badge}",
-    "balance_title": "💰 Solde de {name}",
+    "balance_title": "💰 Solde · {name}",
     "balance_coins_line": "{coin} **{coins}** pièces en poche",
     "balance_gems_line": "{gem} **{gems}** gemmes",
     "balance_bank_line": "🏦 **{bank}** en banque (capacité {capacity})",
-    "balance_networth_line": "Fortune totale : **{total}**",
-    "stats_hint": "Utilisez `/stats user:<@{id}>` pour le détail complet."
+    "balance_networth_line": "Fortune totale : **{total}**"
   },
   "settings": {
     "language_title": "Langue",
@@ -1366,7 +1361,7 @@
     "unknown_field": "Paramètre inconnu.",
     "unknown_language_content": "Langue inconnue.",
     "toggle_title": "⚙️ Paramètre mis à jour",
-    "toggle_body": "`{field}` est maintenant **{state}**.",
+    "toggle_body": "{field} : **{state}**.",
     "toggle_dm_warning": "\n\n⚠️ Activez aussi les **notifications par message privé** pour recevoir les alertes."
   },
   "leaderboard": {

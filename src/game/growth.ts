@@ -164,6 +164,24 @@ export function computeWaterStatus(
 }
 
 /**
+ * Prochain arrosage à venir parmi des cultures, ou `null` si aucune n'en
+ * demandera plus. Sert au refus « rien à arroser », qui renvoyait vers `/farm`
+ * sans que `/farm` affiche l'heure du prochain arrosage.
+ */
+export function nextWateringAt(
+  crops: ReadonlyArray<Pick<PlantedCropState, 'plantedAt' | 'growthSeconds' | 'waterNeeded' | 'waterGiven'>>,
+  now: Date,
+): Date | null {
+  let next: Date | null = null;
+  for (const crop of crops) {
+    const at = computeWaterStatus(crop, now, 0).nextWaterAt;
+    if (!at || at.getTime() <= now.getTime()) continue;
+    if (!next || at.getTime() < next.getTime()) next = at;
+  }
+  return next;
+}
+
+/**
  * État de croissance à l'instant `now`. Fonction pure, cœur du moteur.
  */
 export function computeGrowth(

@@ -14,7 +14,7 @@ import { checkAndSet, checkGlobalRate, clear as clearCooldown, cooldownSecondsFo
 import {
   buildContext,
   cooldownMessage,
-  noAccountEmbed,
+  noAccountReply,
   replyEphemeral,
   replyError,
 } from '../framework/interaction';
@@ -157,7 +157,7 @@ async function handleCommand(
     });
 
     if (!context) {
-      await replyEphemeral(interaction, { embeds: [noAccountEmbed(interaction.locale)] });
+      await replyEphemeral(interaction, noAccountReply(interaction));
       return;
     }
 
@@ -278,7 +278,7 @@ async function handleComponent(
       requiresAccount: handler.requiresAccount,
     });
     if (!context) {
-      await replyEphemeral(interaction, { embeds: [noAccountEmbed(interaction.locale)] });
+      await replyEphemeral(interaction, noAccountReply(interaction));
       return;
     }
 
@@ -327,7 +327,7 @@ async function handleContextMenu(
   try {
     context = await buildContext(interaction, {});
     if (!context) {
-      await replyEphemeral(interaction, { embeds: [noAccountEmbed(interaction.locale)] });
+      await replyEphemeral(interaction, noAccountReply(interaction));
       return;
     }
     await menu.execute(interaction, context);

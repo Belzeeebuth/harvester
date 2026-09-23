@@ -144,6 +144,36 @@ export async function requireMembership(userId: string) {
   return membership;
 }
 
+/**
+ * Conditions de fondation vérifiables AVANT d'ouvrir le formulaire de nom : le
+ * bouton « Créer une coopérative » ouvrait la fenêtre puis refusait au niveau
+ * 10, après que le joueur avait tapé un nom. Même logique que
+ * `assertPurchasable` dans la boutique.
+ */
+export function assertCanCreateCoop(
+  player: Pick<PlayerContext, 'level' | 'coins'>,
+  options: { checkFunds?: boolean } = {},
+): void {
+  const balance = getBalance();
+  if (player.level < balance.coop.creationMinLevel) {
+    throw gameError(
+      'level_too_low',
+      `Creating a co-op requires level ${balance.coop.creationMinLevel}.`,
+      { i18nKey: 'errors.coop.creation_min_level', params: { level: balance.coop.creationMinLevel } },
+    );
+  }
+  // Le solde du contexte peut dater de quelques secondes : le débit réel, dans
+  // la transaction de `createCoop`, reste la seule vérification qui fait foi.
+  const missing = balance.coop.creationCostCoins - player.coins;
+  if (options.checkFunds !== false && missing > 0) {
+    throw gameError('insufficient_funds', `You are ${missing} 🪙 short.`, {
+      i18nKey: 'common.insufficient_funds',
+      hintKey: 'onboarding.earn_hint',
+      params: { missing },
+    });
+  }
+}
+
 export async function createCoop(
   player: PlayerContext,
   input: { name: string; tag: string; description?: string; emblem?: string },
@@ -164,13 +194,7 @@ export async function createCoop(
       i18nKey: 'errors.coop.invalid_tag',
     });
   }
-  if (player.level < balance.coop.creationMinLevel) {
-    throw gameError(
-      'level_too_low',
-      `Creating a co-op requires level ${balance.coop.creationMinLevel}.`,
-      { i18nKey: 'errors.coop.creation_min_level', params: { level: balance.coop.creationMinLevel } },
-    );
-  }
+  assertCanCreateCoop(player, { checkFunds: false });
 
   // La fiche est lue APRÈS la validation : `getCoopInfo` passe par une autre
   // connexion du pool, qui ne voit pas encore la coopérative insérée par la

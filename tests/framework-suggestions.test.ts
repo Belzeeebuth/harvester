@@ -63,9 +63,12 @@ describe('table des suggestions', () => {
     expect(morts).toEqual([]);
   });
 
-  it('ne propose plus de bouton « évènement » tant qu’aucun composant ne le sert', () => {
-    expect(SUGGESTIONS.event).toBeUndefined();
-    expect(suggestionRow('event', '123456789')).toBeUndefined();
+  it('sert les raccourcis profil, marché et événement (auparavant ignorés)', () => {
+    // `event` pointe désormais sur `event:open`, un gestionnaire réel.
+    for (const command of ['profile', 'market', 'event']) {
+      expect(SUGGESTIONS[command], command).toBeDefined();
+      expect(suggestionRow(command, '123456789'), command).toBeDefined();
+    }
   });
 
   it('ne rend rien pour une suggestion inconnue', () => {

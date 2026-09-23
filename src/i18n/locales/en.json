@@ -95,7 +95,6 @@
     "unlimited": "unlimited",
     "enabled": "enabled",
     "disabled": "disabled",
-    "level_up_title": "🎉 Level up!",
     "tracking_quest_completed": "📋 Quests completed: {quests}. Claim with `/quests`.",
     "tracking_achievement_unlocked": "🏆 Achievements unlocked: {achievements}",
     "tracking_coop_objective": "🤝 Co-op objectives reached: {objectives}"
@@ -114,12 +113,12 @@
   },
   "start": {
     "welcome_title": "🌾 Welcome to Greenvale!",
-    "welcome_body": "The mayor hands you a fallow plot and **{coins}**.\n\nSow, harvest, sell, then do it again, bigger.\n\nTo get going:\n`/plant seed:Wheat`: sow\n`/farm`: see your plots\n`/harvest`: bring it in\n\nStuck? `/help` has the answers, `/tutorial` walks you through.",
+    "welcome_body": "The mayor hands you a fallow plot and **{coins}**.\n\nSow, harvest, sell, then do it again, bigger.\n\nTo get going:\n`/plant seed:{seed}`: sow\n`/farm`: see your plots\n`/harvest`: bring it in\n\nStuck? `/help` has the answers, `/tutorial` walks you through.",
     "already_registered": "You already have a farm. `/farm` to check on it.",
     "already_title": "🌾 You already have a farm",
     "already_body": "`/farm` to check on it, `/quests` for today's goals, `/help` if you are stuck.",
     "starter_kit": "Starter pack",
-    "starter_kit_body": "• 10× 🌾 wheat seeds\n• 5× 🥕 carrot seeds\n• 2× 💩 basic fertilizer\n• 1× 🪣 wooden watering can\n• 10× 🌰 grain (for your future animals)",
+    "starter_kit_body": "{seeds}\n• 2× 💩 basic fertilizer\n• 1× 🪣 wooden watering can\n• 10× 🌰 grain (for your future animals)",
     "estate_field": "🗺️ Your estate",
     "estate_body": "• {plots} plots (3×3)\n• 📦 Warehouse level 1\n• 🏠 House level 1 (100 ⚡)",
     "button_tutorial": "Start tutorial",
@@ -157,7 +156,7 @@
     "plant_body_slots": "**{count}** plot(s) planted: {slots}",
     "plant_body_harvest": "🌱 Harvest {relative} ({time})",
     "plant_body_water": "💧 Waterings expected: {count}",
-    "plant_body_off_season": "⚠️ *Out of season: slower growth and reduced yield. A greenhouse would cancel this penalty.*",
+    "plant_body_off_season": "⚠️ *Out of season: slower growth and reduced yield.*",
     "plant_autocomplete": "{emoji} {name} · {owned} seed(s), {minutes} min",
     "harvest_title": "🧺 Harvest",
     "harvest_nothing": "Nothing to harvest.",
@@ -166,7 +165,6 @@
     "harvest_withered_title": "💀 Withered crops",
     "harvest_withered_body": "Plots {slots}: all withered. Harvest sooner.",
     "harvest_seed_store_title": "🫧 Seed shed",
-    "harvest_level_up_body": "You reached **level {level}** (+{gained})\nReward: {coins}{gems}",
     "rain_title": "🌧️ It's raining!",
     "rain_body": "All your plots are watered for free today. Save your energy.",
     "water_title": "💧 Watering",
@@ -196,7 +194,7 @@
     "plot_unlocked_body": "Plot **{slot}** for {cost}.\nFarm: {width}×{height}{nextPart}",
     "plot_unlocked_next": "\nNext: {cost}",
     "no_seeds_title": "🌱 No seeds",
-    "no_seeds_body": "Buy some with `/shop` or `/buy item:seed_wheat`.",
+    "no_seeds_body": "Buy some in `/shop` or with `/buy` (type “wheat”).",
     "plant_menu_title": "🌱 What do you want to plant?",
     "plant_menu_body": "The chosen crop will be sown on every empty plot.",
     "plant_menu_placeholder": "Pick a crop",
@@ -394,8 +392,7 @@
     "balance_coins_line": "{coin} **{coins}** coins on hand",
     "balance_gems_line": "{gem} **{gems}** gems",
     "balance_bank_line": "🏦 **{bank}** in the bank (capacity {capacity})",
-    "balance_networth_line": "Total net worth: **{total}**",
-    "stats_hint": "Use `/stats user:<@{id}>` for the full breakdown."
+    "balance_networth_line": "Total net worth: **{total}**"
   },
   "settings": {
     "language_title": "Language",
@@ -432,7 +429,7 @@
     "unknown_field": "Unknown setting.",
     "unknown_language_content": "Unknown language.",
     "toggle_title": "⚙️ Setting updated",
-    "toggle_body": "`{field}` is now **{state}**.",
+    "toggle_body": "{field}: **{state}**.",
     "toggle_dm_warning": "\n\n⚠️ Also enable **direct message notifications** to receive alerts."
   },
   "leaderboard": {
@@ -666,7 +663,6 @@
     "feed_body": "Animals fed: **{count}**\nConsumed: {items}",
     "collect_title": "🥚 Collection",
     "collect_total_value": "Products: **{count}** · **{xp}** ✨{levelUp}",
-    "collect_level_up": "\n⭐ Level **{level}** reached!",
     "heal_title": "{emoji} {name} has been treated",
     "heal_body": "You pay the vet {cost}.\nHealth back to **100%**.",
     "pet_title": "{emoji} {name} enjoys it",
@@ -858,8 +854,7 @@
     "build_cost_line": "Cost: {cost}",
     "build_capacity_line": "Capacity: **{capacity}**",
     "build_slots_line": "Production slots: **{slots}**",
-    "collect_title": "📦 Production collected",
-    "recipes_hint": "`/recipes`: the full list. `/craft`: start a production run."
+    "collect_title": "📦 Production collected"
   },
   "pets": {
     "list_title": "🐾 Your companions",
@@ -959,7 +954,7 @@
     "next_button": "Next",
     "step1": {
       "title": "1/6 · Planting",
-      "body": "Everything starts with a seed.\n\n`/plant seed:Wheat`\n\nWithout a plot number, the bot fills your empty plots automatically. Add `quantity:9` to sow them all at once."
+      "body": "Everything starts with a seed.\n\n`/plant seed:Wheat`\n\nWithout a plot number, the bot sows as many empty plots as your seeds allow. Add `quantity:3` to stop at three."
     },
     "step2": {
       "title": "2/6 · Watering",
@@ -975,11 +970,11 @@
     },
     "step5": {
       "title": "5/6 · Reinvesting",
-      "body": "Your coins are there to grow:\n\n• `/buy-plot`: one more plot\n• `/shop`: seeds, fertilizer, tools\n• `/buildings`: coop, mill, warehouse\n• `/buy-animal`: passive production"
+      "body": "Your coins are there to grow:\n\n• `/buy-plot`: one more plot\n• `/shop`: seeds, fertilizer, tools\n• `/buildings`: coop, mill, warehouse\n• `/buy-animal`: passive production, from level {animalLevel}"
     },
     "step6": {
       "title": "6/6 · Progressing",
-      "body": "Every day:\n\n• `/daily`: daily reward and streak\n• `/quests`: 4 daily quests + 3 weekly\n• `/coop`: join a co-op for permanent bonuses"
+      "body": "Every day:\n\n• `/daily`: daily reward and streak\n• `/quests`: 4 daily quests + 3 weekly\n• `/coop`: join a co-op for permanent bonuses (founding one: level {coopLevel})"
     }
   },
   "weather": {

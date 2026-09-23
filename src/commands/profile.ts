@@ -1,6 +1,7 @@
-import { ButtonStyle, MessageFlags, SlashCommandBuilder } from 'discord.js';
+import { ButtonStyle, MessageFlags, SlashCommandBuilder, type User } from 'discord.js';
 import { COLORS, baseEmbed, button, confirmRow, row } from '../framework/ui';
 import { safeReply } from '../framework/interaction';
+import type { View } from '../framework/views';
 import { NO_IMAGE, renderProfileImage } from '../render';
 import { getProfile } from '../services/player.service';
 import * as miscService from '../services/misc.service';
@@ -18,9 +19,158 @@ import {
   formatNumber,
   progressBar,
 } from '../utils/format';
-import type { Command } from '../types';
+import type { Command, CommandContext } from '../types';
 
 /** Profil, statistiques, paramètres, solde et prestige. */
+
+/**
+ * Carte de profil, partagée par `/profile` et le raccourci « profil » proposé
+ * sur certaines erreurs (niveau insuffisant pour pêcher ou miner).
+ */
+export async function profileView(
+  context: CommandContext,
+  target: Pick<User, 'id' | 'displayName' | 'displayAvatarURL'>,
+  ownerId: string,
+): Promise<View> {
+  const profile = await getProfile(target.id);
+  if (!profile) {
+    throw gameError('not_found', context.t('economy.target_no_farm', { name: target.displayName }));
+  }
+
+  const image = context.player.compactMode
+    ? NO_IMAGE
+    : await renderProfileImage({
+        locale: context.locale,
+        username: profile.user.username,
+        displayName: profile.user.displayName ?? profile.user.username,
+        avatarUrl: target.displayAvatarURL({ extension: 'png', size: 256 }),
+        title: profile.user.title,
+        badges: profile.user.badges,
+        level: profile.user.level,
+        prestige: profile.user.prestige,
+        xp: { current: profile.user.xp, needed: profile.xpForNext },
+        coins: profile.user.coins,
+        gems: profile.user.gems,
+        bank: profile.bankBalance,
+        energy: { current: profile.energy.current, max: profile.energy.max },
+        stats: {
+          harvests: profile.user.totalHarvests,
+          animals: profile.user.totalAnimalsRaised,
+          crafts: profile.user.totalCrafts,
+          plots: profile.plotsUnlocked,
+          streak: profile.streak,
+          achievements: profile.achievementsUnlocked,
+          bestHarvest: profile.user.bestHarvestValue,
+          coinsEarned: profile.user.totalCoinsEarned,
+        },
+        coop: profile.coop,
+        themeColor: profile.user.profileColor,
+        bannerStyle: profile.user.profileTheme,
+        farmName: profile.farm.name,
+        createdAt: profile.user.createdAt,
+      });
+
+  const embed = baseEmbed({
+    title: `${profile.user.displayName ?? profile.user.username} ${prestigeBadge(profile.user.prestige)}`,
+    description: [
+      profile.user.title ? `*${profile.user.title}*` : '',
+      context.t('profile.level_line', {
+        level: profile.user.level,
+        bar: progressBar(profile.user.xp, profile.xpForNext || 1, 12),
+        xp: formatCompact(profile.user.xp, context.locale),
+        needed: formatCompact(profile.xpForNext, context.locale),
+      }),
+      context.t('profile.wallet_line', {
+        coin: COIN,
+        coins: formatNumber(profile.user.coins, context.locale),
+        gem: GEM,
+        gems: formatNumber(profile.user.gems, context.locale),
+        bank: formatCompact(profile.bankBalance, context.locale),
+      }),
+      context.t('profile.energy_line', {
+        current: profile.energy.current,
+        max: profile.energy.max,
+        fullPart: profile.energy.fullAt
+          ? context.t('profile.energy_full_at', {
+              relative: discordTimestamp(profile.energy.fullAt, 'R'),
+            })
+          : '',
+      }),
+      profile.coop
+        ? context.t('profile.coop_line', {
+            name: profile.coop.name,
+            tag: profile.coop.tag,
+            level: context.t('common.level_abbr', { level: profile.coop.level }),
+          })
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    color: COLORS.primary,
+    // Image laissée en pièce jointe libre, hors de l'embed : voir la note
+    // détaillée dans `farmView` (src/framework/views.ts). Un embed rend
+    // l'image à sa propre largeur (~400 px) ; celle-ci en fait 900 px.
+  });
+
+  if (!image.attachment) {
+    embed.addFields(
+      {
+        name: context.t('profile.field_harvests'),
+        value: formatNumber(profile.user.totalHarvests, context.locale),
+        inline: true,
+      },
+      {
+        name: context.t('profile.field_animals'),
+        value: formatNumber(profile.user.totalAnimalsRaised, context.locale),
+        inline: true,
+      },
+      {
+        name: context.t('profile.field_crafts'),
+        value: formatNumber(profile.user.totalCrafts, context.locale),
+        inline: true,
+      },
+      {
+        name: context.t('profile.field_plots'),
+        value: context.t('profile.plots_value', { unlocked: profile.plotsUnlocked, max: 64 }),
+        inline: true,
+      },
+      {
+        name: context.t('profile.field_streak'),
+        value: context.t('profile.streak_value', { count: profile.streak }),
+        inline: true,
+      },
+      {
+        name: context.t('profile.field_achievements'),
+        value: String(profile.achievementsUnlocked),
+        inline: true,
+      },
+    );
+  }
+
+  return {
+    embeds: [embed],
+    files: image.attachment ? [image.attachment] : [],
+    components: [
+      row(
+        button({
+          namespace: 'farm',
+          action: 'refresh',
+          ownerId,
+          label: context.t('common.my_farm'),
+          emoji: '🌾',
+        }),
+        button({
+          namespace: 'profile',
+          action: 'stats',
+          ownerId,
+          params: [target.id],
+          label: context.t('profile.stats_button'),
+          emoji: '📊',
+        }),
+      ),
+    ],
+  };
+}
 
 const profil: Command = {
   category: 'demarrage',
@@ -34,146 +184,140 @@ const profil: Command = {
   async execute(interaction, context): Promise<void> {
     await interaction.deferReply();
     const target = interaction.options.getUser('user') ?? interaction.user;
-    const profile = await getProfile(target.id);
-    if (!profile) {
-      throw gameError('not_found', context.t('economy.target_no_farm', { name: target.displayName }));
-    }
-
-    const image = context.player.compactMode
-      ? NO_IMAGE
-      : await renderProfileImage({
-          locale: context.locale,
-          username: profile.user.username,
-          displayName: profile.user.displayName ?? profile.user.username,
-          avatarUrl: target.displayAvatarURL({ extension: 'png', size: 256 }),
-          title: profile.user.title,
-          badges: profile.user.badges,
-          level: profile.user.level,
-          prestige: profile.user.prestige,
-          xp: { current: profile.user.xp, needed: profile.xpForNext },
-          coins: profile.user.coins,
-          gems: profile.user.gems,
-          bank: profile.bankBalance,
-          energy: { current: profile.energy.current, max: profile.energy.max },
-          stats: {
-            harvests: profile.user.totalHarvests,
-            animals: profile.user.totalAnimalsRaised,
-            crafts: profile.user.totalCrafts,
-            plots: profile.plotsUnlocked,
-            streak: profile.streak,
-            achievements: profile.achievementsUnlocked,
-            bestHarvest: profile.user.bestHarvestValue,
-            coinsEarned: profile.user.totalCoinsEarned,
-          },
-          coop: profile.coop,
-          themeColor: profile.user.profileColor,
-          bannerStyle: profile.user.profileTheme,
-          farmName: profile.farm.name,
-          createdAt: profile.user.createdAt,
-        });
-
-    const embed = baseEmbed({
-      title: `${profile.user.displayName ?? profile.user.username} ${prestigeBadge(profile.user.prestige)}`,
-      description: [
-        profile.user.title ? `*${profile.user.title}*` : '',
-        context.t('profile.level_line', {
-          level: profile.user.level,
-          bar: progressBar(profile.user.xp, profile.xpForNext || 1, 12),
-          xp: formatCompact(profile.user.xp, context.locale),
-          needed: formatCompact(profile.xpForNext, context.locale),
-        }),
-        context.t('profile.wallet_line', {
-          coin: COIN,
-          coins: formatNumber(profile.user.coins, context.locale),
-          gem: GEM,
-          gems: formatNumber(profile.user.gems, context.locale),
-          bank: formatCompact(profile.bankBalance, context.locale),
-        }),
-        context.t('profile.energy_line', {
-          current: profile.energy.current,
-          max: profile.energy.max,
-          fullPart: profile.energy.fullAt
-            ? context.t('profile.energy_full_at', {
-                relative: discordTimestamp(profile.energy.fullAt, 'R'),
-              })
-            : '',
-        }),
-        profile.coop
-          ? context.t('profile.coop_line', {
-              name: profile.coop.name,
-              tag: profile.coop.tag,
-              level: context.t('common.level_abbr', { level: profile.coop.level }),
-            })
-          : '',
-      ]
-        .filter(Boolean)
-        .join('\n'),
-      color: COLORS.primary,
-      // Image laissée en pièce jointe libre, hors de l'embed : voir la note
-      // détaillée dans `farmView` (src/framework/views.ts). Un embed rend
-      // l'image à sa propre largeur (~400 px) ; celle-ci en fait 900 px.
-    });
-
-    if (!image.attachment) {
-      embed.addFields(
-        {
-          name: context.t('profile.field_harvests'),
-          value: formatNumber(profile.user.totalHarvests, context.locale),
-          inline: true,
-        },
-        {
-          name: context.t('profile.field_animals'),
-          value: formatNumber(profile.user.totalAnimalsRaised, context.locale),
-          inline: true,
-        },
-        {
-          name: context.t('profile.field_crafts'),
-          value: formatNumber(profile.user.totalCrafts, context.locale),
-          inline: true,
-        },
-        {
-          name: context.t('profile.field_plots'),
-          value: context.t('profile.plots_value', { unlocked: profile.plotsUnlocked, max: 64 }),
-          inline: true,
-        },
-        {
-          name: context.t('profile.field_streak'),
-          value: context.t('profile.streak_value', { count: profile.streak }),
-          inline: true,
-        },
-        {
-          name: context.t('profile.field_achievements'),
-          value: String(profile.achievementsUnlocked),
-          inline: true,
-        },
-      );
-    }
-
-    await interaction.editReply({
-      embeds: [embed],
-      files: image.attachment ? [image.attachment] : [],
-      components: [
-        row(
-          button({
-            namespace: 'farm',
-            action: 'refresh',
-            ownerId: interaction.user.id,
-            label: context.t('common.my_farm'),
-            emoji: '🌾',
-          }),
-          button({
-            namespace: 'profile',
-            action: 'stats',
-            ownerId: interaction.user.id,
-            params: [target.id],
-            label: context.t('profile.stats_button'),
-            emoji: '📊',
-          }),
-        ),
-      ],
-    });
+    await interaction.editReply(await profileView(context, target, interaction.user.id));
   },
 };
+
+/**
+ * Statistiques détaillées, partagées par `/stats` et le bouton « Stats » de
+ * `/profile` (qui renvoyait auparavant vers la commande sans rien montrer).
+ */
+export async function statsView(
+  context: CommandContext,
+  discordId: string,
+  displayName: string,
+): Promise<View> {
+  const data = await miscService.playerStats(discordId);
+  if (!data) {
+    throw gameError('not_found', context.t('economy.target_no_farm', { name: displayName }));
+  }
+
+  return {
+    embeds: [
+      baseEmbed({
+        title: context.t('profile.stats_title', { name: data.user.displayName ?? data.user.username }),
+        color: COLORS.info,
+        fields: [
+          {
+            name: context.t('profile.stats_agriculture_field'),
+            value: [
+              context.t('profile.stats_harvests_line', {
+                count: formatNumber(data.user.totalHarvests, context.locale),
+              }),
+              context.t('profile.stats_planted_line', {
+                count: formatNumber(data.user.totalPlanted, context.locale),
+              }),
+              context.t('profile.stats_watered_line', {
+                count: formatNumber(data.user.totalWatered, context.locale),
+              }),
+              context.t('profile.stats_best_harvest_line', {
+                value: formatCoins(data.user.bestHarvestValue, true, context.locale),
+              }),
+            ].join('\n'),
+            inline: true,
+          },
+          {
+            name: context.t('profile.stats_livestock_field'),
+            value: [
+              context.t('profile.stats_animals_line', {
+                count: formatNumber(data.user.totalAnimalsRaised, context.locale),
+              }),
+              context.t('profile.stats_alive_line', { count: data.animalsAlive }),
+              context.t('profile.stats_crafts_line', {
+                count: formatNumber(data.user.totalCrafts, context.locale),
+              }),
+            ].join('\n'),
+            inline: true,
+          },
+          {
+            name: context.t('profile.stats_economy_field'),
+            value: [
+              context.t('profile.stats_earned_line', {
+                value: formatCoins(data.user.totalCoinsEarned, true, context.locale),
+              }),
+              context.t('profile.stats_spent_line', {
+                value: formatCoins(data.user.totalCoinsSpent, true, context.locale),
+              }),
+              context.t('profile.stats_balance_line', {
+                value: formatCoins(data.user.coins, true, context.locale),
+              }),
+            ].join('\n'),
+            inline: true,
+          },
+          {
+            name: context.t('profile.stats_social_field'),
+            value: [
+              context.t('profile.stats_help_line', {
+                count: formatNumber(data.user.totalHelpGiven, context.locale),
+              }),
+              context.t('profile.stats_streak_line', {
+                count: data.streak,
+                best: data.longestStreak,
+              }),
+              context.t('profile.stats_commands_line', {
+                count: formatNumber(data.user.commandsUsed, context.locale),
+              }),
+            ].join('\n'),
+            inline: true,
+          },
+          {
+            name: context.t('profile.stats_leaderboards_field'),
+            value:
+              [
+                data.ranks.wealth
+                  ? context.t('profile.stats_rank_line', {
+                      label: context.t('leaderboard.wealth'),
+                      rank: data.ranks.wealth.rank,
+                    })
+                  : '',
+                data.ranks.level
+                  ? context.t('profile.stats_rank_line', {
+                      label: context.t('leaderboard.level'),
+                      rank: data.ranks.level.rank,
+                    })
+                  : '',
+                data.ranks.harvests
+                  ? context.t('profile.stats_rank_line', {
+                      label: context.t('leaderboard.harvests'),
+                      rank: data.ranks.harvests.rank,
+                    })
+                  : '',
+              ]
+                .filter(Boolean)
+                .join('\n') || context.t('common.none'),
+            inline: true,
+          },
+          {
+            name: context.t('profile.stats_misc_field'),
+            value: [
+              context.t('profile.stats_inventory_line', {
+                count: formatNumber(data.inventoryTotal, context.locale),
+              }),
+              context.t('profile.stats_created_line', {
+                date: discordTimestamp(data.user.createdAt, 'D'),
+              }),
+              context.t('profile.stats_prestige_line', {
+                count: data.user.prestige,
+                badge: prestigeBadge(data.user.prestige),
+              }),
+            ].join('\n'),
+            inline: true,
+          },
+        ],
+      }),
+    ],
+  };
+}
 
 const stats: Command = {
   category: 'demarrage',
@@ -187,126 +331,7 @@ const stats: Command = {
   async execute(interaction, context): Promise<void> {
     await interaction.deferReply();
     const target = interaction.options.getUser('user') ?? interaction.user;
-    const data = await miscService.playerStats(target.id);
-    if (!data) {
-      throw gameError('not_found', context.t('economy.target_no_farm', { name: target.displayName }));
-    }
-
-    await interaction.editReply({
-      embeds: [
-        baseEmbed({
-          title: context.t('profile.stats_title', { name: data.user.displayName ?? data.user.username }),
-          color: COLORS.info,
-          fields: [
-            {
-              name: context.t('profile.stats_agriculture_field'),
-              value: [
-                context.t('profile.stats_harvests_line', {
-                  count: formatNumber(data.user.totalHarvests, context.locale),
-                }),
-                context.t('profile.stats_planted_line', {
-                  count: formatNumber(data.user.totalPlanted, context.locale),
-                }),
-                context.t('profile.stats_watered_line', {
-                  count: formatNumber(data.user.totalWatered, context.locale),
-                }),
-                context.t('profile.stats_best_harvest_line', {
-                  value: formatCoins(data.user.bestHarvestValue, true, context.locale),
-                }),
-              ].join('\n'),
-              inline: true,
-            },
-            {
-              name: context.t('profile.stats_livestock_field'),
-              value: [
-                context.t('profile.stats_animals_line', {
-                  count: formatNumber(data.user.totalAnimalsRaised, context.locale),
-                }),
-                context.t('profile.stats_alive_line', { count: data.animalsAlive }),
-                context.t('profile.stats_crafts_line', {
-                  count: formatNumber(data.user.totalCrafts, context.locale),
-                }),
-              ].join('\n'),
-              inline: true,
-            },
-            {
-              name: context.t('profile.stats_economy_field'),
-              value: [
-                context.t('profile.stats_earned_line', {
-                  value: formatCoins(data.user.totalCoinsEarned, true, context.locale),
-                }),
-                context.t('profile.stats_spent_line', {
-                  value: formatCoins(data.user.totalCoinsSpent, true, context.locale),
-                }),
-                context.t('profile.stats_balance_line', {
-                  value: formatCoins(data.user.coins, true, context.locale),
-                }),
-              ].join('\n'),
-              inline: true,
-            },
-            {
-              name: context.t('profile.stats_social_field'),
-              value: [
-                context.t('profile.stats_help_line', {
-                  count: formatNumber(data.user.totalHelpGiven, context.locale),
-                }),
-                context.t('profile.stats_streak_line', {
-                  count: data.streak,
-                  best: data.longestStreak,
-                }),
-                context.t('profile.stats_commands_line', {
-                  count: formatNumber(data.user.commandsUsed, context.locale),
-                }),
-              ].join('\n'),
-              inline: true,
-            },
-            {
-              name: context.t('profile.stats_leaderboards_field'),
-              value:
-                [
-                  data.ranks.wealth
-                    ? context.t('profile.stats_rank_line', {
-                        label: context.t('leaderboard.wealth'),
-                        rank: data.ranks.wealth.rank,
-                      })
-                    : '',
-                  data.ranks.level
-                    ? context.t('profile.stats_rank_line', {
-                        label: context.t('leaderboard.level'),
-                        rank: data.ranks.level.rank,
-                      })
-                    : '',
-                  data.ranks.harvests
-                    ? context.t('profile.stats_rank_line', {
-                        label: context.t('leaderboard.harvests'),
-                        rank: data.ranks.harvests.rank,
-                      })
-                    : '',
-                ]
-                  .filter(Boolean)
-                  .join('\n') || context.t('common.none'),
-              inline: true,
-            },
-            {
-              name: context.t('profile.stats_misc_field'),
-              value: [
-                context.t('profile.stats_inventory_line', {
-                  count: formatNumber(data.inventoryTotal, context.locale),
-                }),
-                context.t('profile.stats_created_line', {
-                  date: discordTimestamp(data.user.createdAt, 'D'),
-                }),
-                context.t('profile.stats_prestige_line', {
-                  count: data.user.prestige,
-                  badge: prestigeBadge(data.user.prestige),
-                }),
-              ].join('\n'),
-              inline: true,
-            },
-          ],
-        }),
-      ],
-    });
+    await interaction.editReply(await statsView(context, target.id, target.displayName));
   },
 };
 
@@ -433,6 +458,13 @@ const parametres: Command = {
         ? context.t('settings.channel_reminders_no_channel')
         : '';
 
+    // Sans messages privés ni salon de rappels, aucune alerte ne part : les
+    // lignes « ✅ » laissaient croire le contraire.
+    const dmOn = settings?.dmNotifications ?? false;
+    const delivered = dmOn || (settings?.channelReminders ?? false);
+    const alertCheck = (on: boolean | undefined): string =>
+      on ? (delivered ? '✅' : context.t('onboarding.settings_muted', { check: '✅' })) : '❌';
+
     await safeReply(interaction, {
       embeds: [
         baseEmbed({
@@ -440,7 +472,9 @@ const parametres: Command = {
           description:
             (Object.keys(patch).length > 0
               ? context.t('settings.updated_body')
-              : context.t('settings.current_body')) + missingChannelWarning,
+              : context.t('settings.current_body')) +
+            missingChannelWarning +
+            (delivered ? '' : context.t('onboarding.settings_dm_off_hint')),
           color: COLORS.info,
           fields: [
             {
@@ -449,9 +483,9 @@ const parametres: Command = {
                 context.t('settings.dm_line', {
                   state: settings?.dmNotifications ? context.t('common.enabled') : context.t('common.disabled'),
                 }),
-                context.t('settings.notify_crops_line', { check: settings?.notifyCrops ? '✅' : '❌' }),
-                context.t('settings.notify_animals_line', { check: settings?.notifyAnimals ? '✅' : '❌' }),
-                context.t('settings.notify_daily_line', { check: settings?.dailyReminder ? '✅' : '❌' }),
+                context.t('settings.notify_crops_line', { check: alertCheck(settings?.notifyCrops) }),
+                context.t('settings.notify_animals_line', { check: alertCheck(settings?.notifyAnimals) }),
+                context.t('settings.notify_daily_line', { check: alertCheck(settings?.dailyReminder) }),
                 context.t('settings.channel_reminders_line', {
                   check: settings?.channelReminders ? '✅' : '❌',
                 }),
@@ -514,6 +548,21 @@ const parametres: Command = {
             params: ['dailyReminder'],
             label: context.t('settings.daily_reminder_button'),
             emoji: '📅',
+          }),
+        ),
+        // Interrupteur principal : sans lui, les rappels restaient coupés sans
+        // autre moyen visible que l'option `dm-notifications` de la commande.
+        row(
+          button({
+            namespace: 'settings',
+            action: 'toggle',
+            ownerId: interaction.user.id,
+            params: ['dmNotifications'],
+            label: dmOn
+              ? context.t('onboarding.settings_dm_off_button')
+              : context.t('onboarding.settings_dm_on_button'),
+            emoji: dmOn ? '🔕' : '🔔',
+            style: dmOn ? ButtonStyle.Secondary : ButtonStyle.Success,
           }),
         ),
       ],

@@ -16,6 +16,7 @@ import {
   truncate,
 } from '../utils/format';
 import type { Command } from '../types';
+import { withLevelUp } from '../framework/levelup';
 
 /** Quêtes, succès, passe saisonnier, récompense quotidienne et vote. */
 
@@ -303,7 +304,7 @@ const daily: Command = {
 
     await interaction.editReply({
       embeds: [
-        successEmbed(
+        withLevelUp(successEmbed(
           context.t('progression.daily_title', { day: result.streak }),
           [
             context.t('progression.daily_reward_line', {
@@ -332,7 +333,7 @@ const daily: Command = {
           ]
             .filter(Boolean)
             .join('\n'),
-        ),
+        ), result.levelUp, context.t, context.locale),
       ],
       components: [
         row(

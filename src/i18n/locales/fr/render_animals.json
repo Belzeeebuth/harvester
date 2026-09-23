@@ -2,7 +2,7 @@
   "$comment": "Libellés dessinés DANS l'image de basse-cour (/animals, src/render/animals.ts). Les emoji y sont retirés sans police couleur ; le texte alternatif vit dans render_alt.json.",
   "render": {
     "animals": {
-      "title": "Cheptel de {name}",
+      "title": "Cheptel · {name}",
       "capacity": "{used} / {capacity} places",
       "no_building": "Aucun bâtiment d'élevage. Construisez un poulailler avec /buildings",
       "alive": "{count} animal(aux)",

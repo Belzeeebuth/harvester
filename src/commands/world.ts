@@ -466,7 +466,7 @@ const encyclopedie: Command = {
                           emoji: recipe.emoji,
                           name: recipe.name,
                           ingredients: (recipe.ingredients as Array<{ itemKey: string; quantity: number }>)
-                            .map((ingredient) => `${ingredient.quantity}× ${ingredient.itemKey}`)
+                            .map((ingredient) => describeItems([ingredient], context.locale))
                             .join(' + '),
                         }),
                       )

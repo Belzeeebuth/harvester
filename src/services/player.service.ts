@@ -1,4 +1,4 @@
-import { balance as getBalance, getConfig } from '../config';
+import { balance as getBalance, getConfig, seedKeyOf } from '../config';
 import { env } from '../config/env';
 import { getDb, withTransaction, type Executor } from '../db/client';
 import {
@@ -13,6 +13,8 @@ import {
 import { energyCost, hasEnergy, projectEnergy, spendEnergy, type EnergyProjection } from '../game/energy';
 import { buildModifiers, type FarmModifiers, type ModifierSources } from '../game/modifiers';
 import { coopBonuses } from '../game/coop';
+import { starterKitFor, type StarterSeed } from '../game/starter-kit';
+import { seasonAt } from '../game/world';
 import { gameError } from '../utils/errors';
 import { discordTimestamp } from '../utils/format';
 import { moduleLogger } from '../utils/logger';
@@ -110,6 +112,11 @@ export function startingGrant(
   return { bonusDelta: referralBonus, total: startingCoins + referralBonus };
 }
 
+/** Graines du sac de départ à l'instant donné (saison en cours). */
+export function starterSeedsAt(now: Date): StarterSeed[] {
+  return starterKitFor(seasonAt(now, getBalance()).season, getConfig().cropList);
+}
+
 async function createPlayer(input: EnsurePlayerInput): Promise<PlayerContext> {
   const balance = getBalance();
   const config = getConfig();
@@ -166,14 +173,18 @@ async function createPlayer(input: EnsurePlayerInput): Promise<PlayerContext> {
     );
 
     // Kit de départ : de quoi jouer immédiatement sans passer par la boutique.
-    // Le choix des objets est délibéré — deux cultures très rapides pour la
-    // boucle d'apprentissage, un engrais pour découvrir la mécanique de sol,
-    // et l'arrosoir de base qui est un OUTIL (donc jamais consommé).
+    // Le choix des objets est délibéré — deux cultures rapides DE SAISON pour
+    // la boucle d'apprentissage (`starterKitFor` : le blé et la carotte fixes
+    // d'autrefois étaient hors saison tout l'hiver), un engrais pour découvrir
+    // la mécanique de sol, et l'arrosoir de base qui est un OUTIL (donc jamais
+    // consommé). `/start` affiche le même calcul (`starterSeedsAt`).
     await inventoryRepo.addItems(
       user.id,
       [
-        { key: { itemKey: 'seed_wheat' }, quantity: 10 },
-        { key: { itemKey: 'seed_carrot' }, quantity: 5 },
+        ...starterSeedsAt(now).map((seed) => ({
+          key: { itemKey: seedKeyOf(seed.cropKey) },
+          quantity: seed.quantity,
+        })),
         { key: { itemKey: 'fertilizer_basic' }, quantity: 2 },
         { key: { itemKey: 'tool_wateringcan_wood' }, quantity: 1 },
         { key: { itemKey: 'feed_grain' }, quantity: 10 },
@@ -298,6 +309,17 @@ export interface XpGainResult {
   rewardCoins: number;
   rewardGems: number;
   crossedLevels: number[];
+}
+
+/** Montée de niveau à remonter jusqu'à l'affichage (`framework/levelup.ts`). */
+export interface LevelUpSummary {
+  level: number;
+  levelsGained: number;
+}
+
+/** `null` si l'octroi d'XP n'a fait franchir aucun niveau. */
+export function levelUpOf(result: XpGainResult | null | undefined): LevelUpSummary | null {
+  return result && result.levelsGained > 0 ? { level: result.level, levelsGained: result.levelsGained } : null;
 }
 
 /**

@@ -1,0 +1,19 @@
+{
+  "$comment": "Première heure de jeu : graines épuisées, arrosage, conseil de saison, vente après récolte et depuis l'inventaire, sac de départ de saison (src/framework/selling.ts, src/services/farm.service.ts, src/commands/start.ts). Fragment fusionné avec fr.json au chargement ; même arborescence que en/first_hour.json.",
+  "first_hour": {
+    "no_seeds": "Vous n'avez plus de {emoji} {name}.",
+    "no_seeds_hint": "Toutes les graines de votre niveau sont en vente chaque jour à la boutique, rayon graines.",
+    "water_next_hint": "Prochain arrosage {relative}.",
+    "water_none_hint": "Aucune culture en terre ne demandera d'eau d'ici sa récolte.",
+    "off_season_advice": "🌱 De saison en ce moment : {crops}",
+    "suggestion_seeds": "Acheter des graines",
+    "sell_harvest_button": "Vendre la récolte",
+    "sell_all_harvest_button": "Vendre toutes les récoltes",
+    "sell_menu_body": "Choisissez un objet à vendre au village (toutes ses piles partent), ou vendez toutes vos récoltes d'un coup. Les piles verrouillées ne sont jamais vendues.\n`/auction sell` : proposer un lot aux autres joueurs (plein prix, 5 % de commission).",
+    "sell_menu_empty": "Rien à vendre pour l'instant. Récoltez avec `/harvest`, puis revenez ici.",
+    "sell_menu_placeholder": "Vendre un objet…",
+    "sell_option_description": "Environ {value} au prix de base",
+    "kit_seed_line": "• {quantity}× {emoji} {name}",
+    "kit_seed_line_level": "• {quantity}× {emoji} {name} (dès le niveau {level})"
+  }
+}

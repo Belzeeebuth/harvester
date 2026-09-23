@@ -21,7 +21,7 @@ import {
 } from '../utils/format';
 import { appendTracking } from './farm';
 import { translatorFor } from '../i18n';
-import type { Command } from '../types';
+import type { Command, Translator } from '../types';
 
 /** Boutique, marché, vente, banque, dons et inventaire. */
 
@@ -72,7 +72,11 @@ const acheter: Command = {
   async execute(interaction, context): Promise<void> {
     await interaction.deferReply();
     const result = await marketService.buy(context.player, {
-      itemKey: interaction.options.getString('item', true),
+      // Nom tapé sans choisir dans l'autocomplétion : résolu vers la clé.
+      itemKey: inventoryService.resolveItemInput(
+        interaction.options.getString('item', true),
+        (item) => item.basePrice + item.priceGems > 0,
+      ),
       quantity: interaction.options.getInteger('quantity') ?? 1,
       discordGuildId: context.discordGuildId,
     });
@@ -100,9 +104,14 @@ const acheter: Command = {
     const t = translatorFor(context.locale);
     const query = interaction.options.getFocused().toString().toLowerCase();
     const entries = await marketService.getShop(new Date(), context.locale);
+    // 41 graines sont désormais en vente : la saisie filtre aussi sur la clé
+    // (« seed_mel »), et le nom de culture suffit (« melon »).
     await interaction.respond(
       entries
-        .filter((entry) => !query || entry.name.toLowerCase().includes(query))
+        .filter(
+          (entry) =>
+            !query || entry.name.toLowerCase().includes(query) || entry.itemKey.includes(query),
+        )
         .slice(0, 25)
         .map((entry) => ({
           name: truncate(
@@ -118,6 +127,29 @@ const acheter: Command = {
 // ---------------------------------------------------------------------------
 // /sell
 // ---------------------------------------------------------------------------
+
+/** Reçu de vente, partagé par `/sell` et les boutons de vente (gestionnaires `sell` de src/components). */
+export function sellResultEmbed(result: marketService.SellResult, t: Translator, locale?: string) {
+  const embed = successEmbed(
+    t('economy.sell_title'),
+    result.lines
+      .map(
+        (line) =>
+          `${line.emoji} **${formatNumber(line.quantity, locale)}× ${line.name}**${qualityIcon(line.quality)} · ${formatNumber(line.unitPrice, locale)} ${COIN}/u`,
+      )
+      .join('\n'),
+  );
+  embed.addFields({
+    name: t('common.total'),
+    value: t('economy.sell_total', {
+      gross: formatCoins(result.gross, false, locale),
+      taxPart: result.tax > 0 ? t('economy.sell_tax_part', { tax: formatCoins(result.tax, false, locale) }) : '',
+      net: formatCoins(result.net, false, locale),
+    }),
+  });
+  appendTracking(embed, result.tracking, t);
+  return embed;
+}
 
 const vendre: Command = {
   category: 'economie',
@@ -135,7 +167,12 @@ const vendre: Command = {
 
   async execute(interaction, context): Promise<void> {
     await interaction.deferReply();
-    const itemKey = interaction.options.getString('item', true);
+    // L'autocomplétion envoie la clé ; un nom tapé à la main (« Blé », « wheat »)
+    // est résolu ici, parmi les objets vendables.
+    const itemKey = inventoryService.resolveItemInput(
+      interaction.options.getString('item', true),
+      (item) => item.sellable !== false && item.sellPrice > 0,
+    );
     const raw = (interaction.options.getString('quantity') ?? 'tout').toLowerCase();
     const quantity = raw === 'tout' || raw === 'all' ? ('all' as const) : Number.parseInt(raw, 10);
 
@@ -149,29 +186,7 @@ const vendre: Command = {
       discordGuildId: context.discordGuildId,
     });
 
-    const embed = successEmbed(
-      context.t('economy.sell_title'),
-      result.lines
-        .map(
-          (line) =>
-            `${line.emoji} **${formatNumber(line.quantity, context.locale)}× ${line.name}**${qualityIcon(line.quality)} · ${formatNumber(line.unitPrice, context.locale)} ${COIN}/u`,
-        )
-        .join('\n'),
-    );
-    embed.addFields({
-      name: context.t('common.total'),
-      value: context.t('economy.sell_total', {
-        gross: formatCoins(result.gross, false, context.locale),
-        taxPart:
-          result.tax > 0
-            ? context.t('economy.sell_tax_part', { tax: formatCoins(result.tax, false, context.locale) })
-            : '',
-        net: formatCoins(result.net, false, context.locale),
-      }),
-    });
-    appendTracking(embed, result.tracking, context.t);
-
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [sellResultEmbed(result, context.t, context.locale)] });
   },
 
   async autocomplete(interaction, context): Promise<void> {

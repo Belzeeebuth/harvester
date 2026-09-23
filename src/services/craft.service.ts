@@ -587,7 +587,7 @@ export async function buildOrUpgrade(
         player.id,
         {
           energy: projected.current,
-          energyUpdatedAt: new Date(),
+          energyUpdatedAt: projected.anchor,
           energyMax: next.effect.energyMax,
         },
         tx,

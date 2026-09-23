@@ -9,6 +9,9 @@ import { formatCoins, formatNumber, gaugeBar, truncate } from '../utils/format';
 import { translatorFor } from '../i18n';
 import { appendTracking } from './farm';
 import type { Command } from '../types';
+import { withLevelUp } from '../framework/levelup';
+import { getConfig } from '../config';
+import { describeItems } from '../services/inventory.service';
 
 /** Commandes d'élevage. */
 
@@ -115,6 +118,29 @@ const acheterAnimal: Command = {
       ? ((await (await import('../repositories/player.repo')).findUserById(context.playerId))?.level ?? 1)
       : 1;
     const animals = animalService.purchasableAnimals(level, query, context.locale);
+    if (animals.length === 0 && !query.trim()) {
+      // Rien d'achetable à ce niveau : une liste vide laissait croire à une
+      // panne. On montre les prochains animaux et le niveau qui les débloque
+      // (les choisir renvoie le message de niveau insuffisant).
+      const next = getConfig(context.locale).animalList
+        .filter((animal) => animal.enabled && !animal.eventOnly && animal.requiredLevel > level)
+        .sort((a, b) => a.requiredLevel - b.requiredLevel)
+        .slice(0, 5);
+      await interaction.respond(
+        next.map((animal) => ({
+          name: truncate(
+            t('onboarding.buy_animal_locked', {
+              emoji: animal.emoji,
+              name: animal.name,
+              level: t('common.level_abbr', { level: animal.requiredLevel }),
+            }),
+            100,
+          ),
+          value: animal.key,
+        })),
+      );
+      return;
+    }
     await interaction.respond(
       animals.map((animal) => ({
         name: truncate(
@@ -159,7 +185,7 @@ const nourrir: Command = {
       context.t('animals.feed_title'),
       context.t('animals.feed_body', {
         count: result.fed,
-        items: result.consumed.map((entry) => `${entry.quantity}× ${entry.itemKey}`).join(', '),
+        items: describeItems(result.consumed, context.locale),
       }),
     );
     appendTracking(embed, result.tracking, context.t);
@@ -200,11 +226,11 @@ const collecter: Command = {
       value: context.t('animals.collect_total_value', {
         count: formatNumber(result.totalQuantity, context.locale),
         xp: formatNumber(result.xpGained, context.locale),
-        levelUp: result.levelUp
-          ? context.t('animals.collect_level_up', { level: result.levelUp.level })
-          : '',
+        // Le détail de la montée de niveau est dans le bloc commun ci-dessous.
+        levelUp: '',
       }),
     });
+    withLevelUp(embed, result.levelUp, context.t, context.locale);
     appendTracking(embed, result.tracking, context.t);
     await interaction.editReply({ embeds: [embed] });
   },

@@ -413,6 +413,7 @@ export const SUGGESTIONS: Record<
   { labelKey: string; emoji: string; namespace: string; action: string }
 > = {
   shop: { labelKey: 'suggestion.shop', emoji: '🏪', namespace: 'shop', action: 'open' },
+  seeds: { labelKey: 'first_hour.suggestion_seeds', emoji: '🌱', namespace: 'shop', action: 'seeds' },
   farm: { labelKey: 'suggestion.farm', emoji: '🌾', namespace: 'farm', action: 'refresh' },
   inventory: { labelKey: 'suggestion.inventory', emoji: '🎒', namespace: 'inv', action: 'open' },
   buildings: { labelKey: 'suggestion.buildings', emoji: '🏗️', namespace: 'build', action: 'open' },
@@ -421,6 +422,11 @@ export const SUGGESTIONS: Record<
   animals: { labelKey: 'suggestion.animals', emoji: '🐄', namespace: 'animal', action: 'open' },
   'buy-plot': { labelKey: 'suggestion.buy_plot', emoji: '🗺️', namespace: 'farm', action: 'buy_plot' },
   coop: { labelKey: 'suggestion.coop', emoji: '🤝', namespace: 'coop', action: 'open' },
+  // Suggérées par les erreurs de niveau (pêche, mine), d'alerte de prix et
+  // d'événement : elles disparaissaient faute d'entrée dans cette table.
+  profile: { labelKey: 'suggestion.profile', emoji: '👤', namespace: 'profile', action: 'open' },
+  market: { labelKey: 'suggestion.market', emoji: '📈', namespace: 'market', action: 'open' },
+  event: { labelKey: 'suggestion.event', emoji: '🎪', namespace: 'event', action: 'open' },
 };
 
 /** Bouton « boutique » proposé automatiquement sur les erreurs de fonds. */

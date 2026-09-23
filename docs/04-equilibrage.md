@@ -131,6 +131,18 @@ Pr = printemps, Été, Aut = automne, Hiv = hiver.
 - Les listes triées par `sortOrder` suivent le niveau requis : citrouille
   (niv. 13, `sortOrder` 140) précède houblon (niv. 14, `sortOrder` 150) depuis
   la revue finale — l'extension C1 avait laissé l'inversion.
+- **Toutes les graines sont en vente permanente**, stock illimité, au prix
+  `seedPrice` et au niveau de la culture. Seules les cinq premières l'étaient ;
+  les autres ne passaient que par la rotation du jour (un jour sur dix environ,
+  stock partagé par le serveur) et débloquer une culture ne servait presque à
+  rien. La rotation du jour ne tire plus de graines, et `seedStockMultiplier`,
+  jamais lu, a été retiré. `/shop` montre les graines du niveau du joueur et les
+  trois suivantes.
+- **Sac de départ de saison** : 10 et 5 graines des deux cultures de saison de
+  niveau 1 (`src/game/starter-kit.ts`). En hiver, seul l'oignon l'est : la
+  seconde sorte est la pomme de terre (niv. 2, atteint en deux récoltes).
+- **Arrosoirs** : bois 3 parcelles par action, cuivre (niv. 8) 6, doré (niv. 18)
+  toute la ferme. Le bois en arrosait une : neuf clics pour la ferme de départ.
 
 L'apparence est aussi une donnée d'équilibrage : chaque culture déclare une
 **silhouette** (`form`) parmi neuf et une **palette** de quatre couleurs, lues

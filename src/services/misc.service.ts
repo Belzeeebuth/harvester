@@ -17,7 +17,7 @@ import * as systemRepo from '../repositories/system.repo';
 import { broadcast } from './cluster';
 import * as economyService from './economy.service';
 import * as inventoryService from './inventory.service';
-import { grantXp, removeXpAmount } from './player.service';
+import { grantXp, levelUpOf, removeXpAmount, type LevelUpSummary } from './player.service';
 import { claimOnce, releaseOnce } from '../utils/lock';
 import { checkAndSet as setCooldown } from '../framework/cooldown';
 import { dailyCycleKey, isWeekend, toSqlDate } from '../utils/time';
@@ -396,7 +396,7 @@ export async function recordVisit(
   host: { id: string; farmId: string },
   helped: boolean,
   plotsWatered: number,
-): Promise<{ rewarded: boolean; coins: number; xp: number }> {
+): Promise<{ rewarded: boolean; coins: number; xp: number; levelUp?: LevelUpSummary | null }> {
   const balance = getBalance();
   const today = toSqlDate(new Date());
 
@@ -429,7 +429,7 @@ export async function recordVisit(
       { userId: visitor.id, amount: coins, type: 'quest_reward', counterpartyId: host.id },
       tx,
     );
-    await grantXp(visitor.id, xp, tx);
+    const levelUp = levelUpOf(await grantXp(visitor.id, xp, tx));
 
     if (helped) {
       // L'hôte reçoit aussi une petite récompense : l'entraide profite aux deux,
@@ -458,7 +458,7 @@ export async function recordVisit(
       tx,
     );
 
-    return { rewarded: true, coins, xp };
+    return { rewarded: true, coins, xp, levelUp };
   });
 }
 

@@ -4,8 +4,10 @@ import { buildingsView, productionView } from '../framework/views';
 import * as craftService from '../services/craft.service';
 import { discordTimestamp, formatCoins, formatNumber, truncate } from '../utils/format';
 import { translatorFor } from '../i18n';
+import { describeItems } from '../services/inventory.service';
+import type { View } from '../framework/views';
 import { appendTracking } from './farm';
-import type { Command } from '../types';
+import type { Command, CommandContext } from '../types';
 
 /** Artisanat, recettes, file de production et bâtiments. */
 
@@ -46,7 +48,7 @@ const crafter: Command = {
             }),
             '',
             context.t('craft.start_ingredients_line', {
-              ingredients: result.consumed.map((entry) => `${entry.quantity}× \`${entry.itemKey}\``).join(', '),
+              ingredients: describeItems(result.consumed, context.locale),
             }),
           ].join('\n'),
         ),
@@ -104,43 +106,51 @@ const recettes: Command = {
   async execute(interaction, context): Promise<void> {
     await interaction.deferReply();
     const category = interaction.options.getString('category') ?? undefined;
-    const recipes = await craftService.listRecipes(context.player, { category });
-
-    const lines = recipes.slice(0, 20).map((entry) => {
-      const lock = !entry.unlocked
-        ? context.t('craft.lock_level', { level: context.t('common.level_abbr', { level: entry.recipe.requiredLevel }) })
-        : !entry.hasBuilding
-          ? context.t('craft.lock_building', { building: entry.building?.name ?? entry.recipe.buildingKey })
-          : entry.craftableCount > 0
-            ? context.t('craft.lock_craftable', { count: entry.craftableCount })
-            : context.t('craft.lock_missing');
-      const ingredients = entry.ingredients
-        .map((ingredient) => `${ingredient.needed}× ${ingredient.emoji}${ingredient.owned < ingredient.needed ? `(${ingredient.owned})` : ''}`)
-        .join(' + ');
-      return [
-        `${entry.recipe.emoji} **${entry.recipe.name}** · ${lock}`,
-        `   ${context.t('craft.recipe_line2', {
-          ingredients,
-          quantity: entry.recipe.outputQuantity,
-          emoji: entry.outputEmoji,
-          margin: entry.margin.toFixed(2),
-          minutes: Math.round(entry.recipe.durationSeconds / 60),
-        })}`,
-      ].join('\n');
-    });
-
-    await interaction.editReply({
-      embeds: [
-        baseEmbed({
-          title: context.t('craft.recipes_title'),
-          description: lines.join('\n') || context.t('craft.recipes_empty'),
-          color: COLORS.primary,
-          footer: context.t('craft.recipes_footer'),
-        }),
-      ],
-    });
+    await interaction.editReply(await recipesView(context, category));
   },
 };
+
+/**
+ * Liste des recettes, partagée par `/recipes` et le bouton « Recettes » de
+ * `/production` (qui renvoyait auparavant vers la commande sans rien montrer).
+ */
+export async function recipesView(context: CommandContext, category?: string): Promise<View> {
+  const recipes = await craftService.listRecipes(context.player, { category });
+
+  const lines = recipes.slice(0, 20).map((entry) => {
+    const lock = !entry.unlocked
+      ? context.t('craft.lock_level', { level: context.t('common.level_abbr', { level: entry.recipe.requiredLevel }) })
+      : !entry.hasBuilding
+        ? context.t('craft.lock_building', { building: entry.building?.name ?? entry.recipe.buildingKey })
+        : entry.craftableCount > 0
+          ? context.t('craft.lock_craftable', { count: entry.craftableCount })
+          : context.t('craft.lock_missing');
+    const ingredients = entry.ingredients
+      .map((ingredient) => `${ingredient.needed}× ${ingredient.emoji}${ingredient.owned < ingredient.needed ? `(${ingredient.owned})` : ''}`)
+      .join(' + ');
+    return [
+      `${entry.recipe.emoji} **${entry.recipe.name}** · ${lock}`,
+      `   ${context.t('craft.recipe_line2', {
+        ingredients,
+        quantity: entry.recipe.outputQuantity,
+        emoji: entry.outputEmoji,
+        margin: entry.margin.toFixed(2),
+        minutes: Math.round(entry.recipe.durationSeconds / 60),
+      })}`,
+    ].join('\n');
+  });
+
+  return {
+    embeds: [
+      baseEmbed({
+        title: context.t('craft.recipes_title'),
+        description: lines.join('\n') || context.t('craft.recipes_empty'),
+        color: COLORS.primary,
+        footer: context.t('craft.recipes_footer'),
+      }),
+    ],
+  };
+}
 
 const production: Command = {
   category: 'inventaire',

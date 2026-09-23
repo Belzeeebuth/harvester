@@ -157,7 +157,7 @@
   "plant#description": "Semer des graines sur vos parcelles",
   "plant/seed#description": "La culture à planter",
   "plant/plot#description": "Une parcelle précise (sinon remplit les parcelles vides)",
-  "plant/quantity#description": "Nombre de parcelles à planter (par défaut : 1)",
+  "plant/quantity#description": "Nombre de parcelles à planter (par défaut : autant que vos graines le permettent)",
   "harvest#description": "Récolter les cultures prêtes",
   "harvest/plot#description": "Une parcelle précise (sinon : tout ce qui est prêt)",
   "water#description": "Arroser vos cultures qui ont soif",

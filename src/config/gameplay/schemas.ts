@@ -689,7 +689,6 @@ export const balanceSchema = z.object({
     discountRange: z.tuple([nonNegativeInt, nonNegativeInt]),
     stockRange: z.tuple([positiveInt, positiveInt]),
     featuredCount: nonNegativeInt,
-    seedStockMultiplier: positiveInt,
   }),
   blackMarket: z.object({
     /** Niveau requis pour tout article, quel que soit le niveau propre de l'objet. */

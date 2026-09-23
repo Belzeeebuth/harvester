@@ -1,0 +1,31 @@
+{
+  "$comment": "Premiers pas : messages privés de rappel (/settings, bouton de /start), niveaux de déblocage dans /help, pistes pour gagner des pièces, bouton /start quand la ferme n'existe pas encore.",
+  "onboarding": {
+    "settings_field": {
+      "notifyCrops": "Alertes de récolte",
+      "notifyAnimals": "Alertes des animaux",
+      "notifyEnergy": "Alerte d'énergie pleine",
+      "notifyMarket": "Alertes du marché",
+      "dailyReminder": "Rappel quotidien",
+      "dmNotifications": "Messages privés"
+    },
+    "settings_muted": "{check} (en pause, messages privés coupés)",
+    "settings_dm_off_hint": "\n\n🔕 Vos messages privés sont coupés : aucun rappel ne vous parvient. Le bouton « Activer les messages privés » les rallume.",
+    "settings_dm_on_button": "Activer les messages privés",
+    "settings_dm_off_button": "Couper les messages privés",
+    "start_dm_button": "Rappels en message privé",
+    "help_from_level": "dès le niv. {level}",
+    "help_partial_from_level": "{what} dès le niv. {level}",
+    "help_what": {
+      "coop_create": "création",
+      "auction": "achats"
+    },
+    "earn_hint": "Pour gagner des pièces : `/daily`, `/quests` et la vente de vos récoltes (`/sell`).",
+    "start_button": "Créer ma ferme",
+    "buy_animal_locked": "🔒 {emoji} {name} · {level}"
+  },
+  "suggestion": {
+    "profile": "Mon profil",
+    "market": "Voir le marché"
+  }
+}

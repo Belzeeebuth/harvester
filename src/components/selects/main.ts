@@ -12,7 +12,7 @@ import * as farmService from '../../services/farm.service';
 import * as marketService from '../../services/market.service';
 import * as progressionService from '../../services/progression.service';
 import * as tradeService from '../../services/trade.service';
-import { appendTracking } from '../../commands/farm';
+import { appendTracking, offSeasonAdvice } from '../../commands/farm';
 import { discordTimestamp, formatCoins, formatNumber, gaugeBar } from '../../utils/format';
 import type { SelectHandler } from '../../types';
 
@@ -90,7 +90,8 @@ const plantSelect: SelectHandler = {
     const cropKey = interaction.values[0];
     if (!cropKey) return;
 
-    const result = await farmService.plant(context.player, { cropKey, quantity: 64 });
+    // Sans quantité : autant de parcelles libres que de graines possédées.
+    const result = await farmService.plant(context.player, { cropKey });
     const embed = successEmbed(
       context.t('farm.plant_success_title', { emoji: result.emoji, cropName: result.cropName }),
       [
@@ -100,6 +101,7 @@ const plantSelect: SelectHandler = {
         }),
         context.t('farm.plant_select_harvest', { relative: discordTimestamp(result.readyAt, 'R') }),
         result.offSeason ? context.t('farm.plant_select_off_season') : '',
+        offSeasonAdvice(result, context.t),
       ]
         .filter(Boolean)
         .join('\n'),

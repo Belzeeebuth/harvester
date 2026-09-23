@@ -1,0 +1,31 @@
+{
+  "$comment": "First steps: reminder DMs (/settings, /start button), unlock levels in /help, hints on earning coins, /start button when no farm exists yet.",
+  "onboarding": {
+    "settings_field": {
+      "notifyCrops": "Crop alerts",
+      "notifyAnimals": "Animal alerts",
+      "notifyEnergy": "Full energy alert",
+      "notifyMarket": "Market alerts",
+      "dailyReminder": "Daily reminder",
+      "dmNotifications": "Direct messages"
+    },
+    "settings_muted": "{check} (paused, direct messages off)",
+    "settings_dm_off_hint": "\n\n🔕 Your direct messages are off: no reminder reaches you. The “Turn on direct messages” button switches them back on.",
+    "settings_dm_on_button": "Turn on direct messages",
+    "settings_dm_off_button": "Turn off direct messages",
+    "start_dm_button": "Reminders by DM",
+    "help_from_level": "from lvl {level}",
+    "help_partial_from_level": "{what} from lvl {level}",
+    "help_what": {
+      "coop_create": "creation",
+      "auction": "buying"
+    },
+    "earn_hint": "To earn coins: `/daily`, `/quests` and selling your crops (`/sell`).",
+    "start_button": "Create my farm",
+    "buy_animal_locked": "🔒 {emoji} {name} · {level}"
+  },
+  "suggestion": {
+    "profile": "My profile",
+    "market": "Open the market"
+  }
+}

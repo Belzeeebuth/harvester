@@ -1,19 +1,29 @@
 import { balance as getBalance, getConfig, harvestKeyOf, seedKeyOf, type CropConfig } from '../config';
 import type { Balance } from '../config/gameplay/schemas';
 import { getDb, lockUserRow, withTransaction } from '../db/client';
-import { computeGrowth, computeWaterStatus, planCrop, type GrowthContext, type GrowthState } from '../game/growth';
+import {
+  computeGrowth,
+  computeWaterStatus,
+  nextWateringAt,
+  planCrop,
+  type GrowthContext,
+  type GrowthState,
+} from '../game/growth';
 import { gridSizeFor, plotUnlockCost } from '../game/grid';
 import { computeHarvest, type HarvestResult } from '../game/harvest';
 import { applyFertilizer, describeFertility, fallowRecovery, weedGrowth, type PestType } from '../game/plot';
 import { liveRng } from '../game/rng';
 import { waterMultiplierFor } from '../game/world';
+import { batchCount } from '../game/planting';
+import { inSeasonCropsFor } from '../game/starter-kit';
 import { gameError } from '../utils/errors';
-import { formatNumber } from '../utils/format';
+import { discordTimestamp, formatNumber } from '../utils/format';
 import { moduleLogger } from '../utils/logger';
 import * as economyRepo from '../repositories/economy.repo';
 import * as farmRepo from '../repositories/farm.repo';
 import * as inventoryRepo from '../repositories/inventory.repo';
 import * as playerRepo from '../repositories/player.repo';
+import * as socialRepo from '../repositories/social.repo';
 import * as inventoryService from './inventory.service';
 import * as economyService from './economy.service';
 import { consumeEnergy, getFarmModifiers, grantXp } from './player.service';
@@ -83,6 +93,27 @@ export interface FarmView {
   nextPlotCost: number;
 }
 
+/**
+ * Modificateurs du joueur, niveau de coopérative COMPRIS.
+ *
+ * Les actions de ferme appelaient `getFarmModifiers` sans niveau de
+ * coopérative (donc 0) : les bonus de pousse, d'XP, de qualité et de vente de
+ * la coopérative ne s'appliquaient pas aux cultures, et l'estimation affichée
+ * à la récolte restait sous ce que `/sell` payait réellement. Un niveau fourni
+ * par l'appelant (déjà lu pour l'affichage) évite une requête.
+ */
+async function farmModifiersFor(
+  player: Pick<PlayerContext, 'id' | 'farmId' | 'prestige' | 'coopId'>,
+  now: Date,
+  coopLevel?: number,
+): Promise<FarmModifiers> {
+  let level = coopLevel;
+  if (level === undefined) {
+    level = player.coopId ? ((await socialRepo.findCoopById(player.coopId))?.level ?? 0) : 0;
+  }
+  return getFarmModifiers(player, { coopLevel: level, now });
+}
+
 /** Vue complète de la ferme : une requête pour les parcelles, tout est dérivé. */
 export async function getFarmView(
   player: Pick<PlayerContext, 'id' | 'farmId' | 'prestige' | 'coopId' | 'locale'>,
@@ -96,7 +127,7 @@ export async function getFarmView(
     farmRepo.listPlots(player.farmId),
     playerRepo.getFarmByUserId(player.id),
     getWorldState(now, player.locale),
-    getFarmModifiers(player, { coopLevel: options.coopLevel, now }),
+    farmModifiersFor(player, now, options.coopLevel),
   ]);
 
   const counts = { ready: 0, growing: 0, empty: 0, locked: 0, withered: 0, pests: 0 };
@@ -260,6 +291,8 @@ export interface PlantResult {
   slots: number[];
   readyAt: Date;
   offSeason: boolean;
+  /** Cultures de saison accessibles au joueur, proposées quand la plantation est hors saison. */
+  inSeasonAlternatives: Array<{ key: string; name: string; emoji: string }>;
   seedsUsed: number;
   waterNeeded: number;
   tracking: TrackResult;
@@ -304,20 +337,33 @@ export async function plant(
 
   const now = new Date();
   const world = await getWorldState(now);
-  const modifiers = await getFarmModifiers(player, { coopLevel: input.coopLevel, now });
+  const modifiers = await farmModifiersFor(player, now, input.coopLevel);
   const context = growthContext(world, modifiers);
   const seedKey = seedKeyOf(crop.key);
 
   return withTransaction(async (tx) => {
     await lockUserRow(tx, player.id);
 
+    // Graines possédées, lues SOUS verrou : elles plafonnent la plantation au
+    // lieu de la faire échouer (voir `batchCount`).
+    const owned = await inventoryRepo.countItem(player.id, seedKey, tx);
+    const seedItem = inventoryService.requireItem(seedKey, player.locale);
+    if (owned <= 0) {
+      throw gameError('insufficient_items', `No ${seedItem.name} left.`, {
+        i18nKey: 'first_hour.no_seeds',
+        hintKey: 'first_hour.no_seeds_hint',
+        params: { emoji: seedItem.emoji, name: seedItem.name },
+        suggestedCommand: 'seeds',
+      });
+    }
+
     // Sélection des parcelles cibles, sous verrou.
-    const targetSlots = input.slot
+    const freeSlots = input.slot
       ? [input.slot]
       : (await farmRepo.listPlots(player.farmId, tx))
           .filter(({ plot, crop: planted }) => isFreeState(plot.state) && !planted)
-          .slice(0, Math.max(1, input.quantity ?? 1))
           .map(({ plot }) => plot.slot);
+    const targetSlots = freeSlots.slice(0, batchCount(freeSlots.length, owned, input.quantity));
 
     if (targetSlots.length === 0) {
       throw gameError('plot_empty', 'No free plot.', {
@@ -362,7 +408,8 @@ export async function plant(
     }
 
     const quantity = plantable.length;
-    // Les graines sont consommées d'un bloc : soit tout, soit rien.
+    // `quantity` ne dépasse jamais les graines possédées (plafond ci-dessus) :
+    // la consommation ne peut plus échouer faute de stock.
     await inventoryService.consume(player.id, seedKey, quantity, tx, player.locale);
     await consumeEnergy(player.id, 'plant', tx, {
       quantity,
@@ -425,6 +472,7 @@ export async function plant(
     );
 
     log.debug({ userId: player.id, cropKey: crop.key, quantity }, 'plantation');
+    const offSeason = !modifiers.seasonImmunity && !crop.seasons.includes(world.season.season);
 
     return {
       cropKey: crop.key,
@@ -432,7 +480,14 @@ export async function plant(
       emoji: crop.emoji,
       slots: plantable.map((plot) => plot.slot),
       readyAt: plan.readyAt,
-      offSeason: !modifiers.seasonImmunity && !crop.seasons.includes(world.season.season),
+      offSeason,
+      inSeasonAlternatives: offSeason
+        ? inSeasonCropsFor(world.season.season, player.level, config.cropList).map((entry) => ({
+            key: entry.key,
+            name: entry.name,
+            emoji: entry.emoji,
+          }))
+        : [],
       seedsUsed: quantity,
       waterNeeded: plan.waterNeeded,
       tracking,
@@ -462,7 +517,7 @@ export async function water(
 ): Promise<WaterResult> {
   const now = new Date();
   const world = await getWorldState(now);
-  const modifiers = await getFarmModifiers(player, { coopLevel: input.coopLevel, now });
+  const modifiers = await farmModifiersFor(player, now, input.coopLevel);
 
   if (world.weather.freeWatering) {
     return { watered: 0, freeRain: true, tracking: emptyTracking(), toolPlots: 0 };
@@ -493,9 +548,18 @@ export async function water(
       .slice(0, input.all ? Math.max(1, toolPlots) : 1);
 
     if (candidates.length === 0) {
+      // Prochain arrosage connu : dit tout de suite, plutôt que renvoyer vers
+      // `/farm` qui ne l'affiche pas.
+      const next = nextWateringAt(
+        rows
+          .filter(({ plot, crop }) => crop && !crop.withered && (!input.slot || plot.slot === input.slot))
+          .map(({ crop }) => crop!),
+        now,
+      );
       throw gameError('no_water_needed', "No plot needs water right now.", {
         i18nKey: 'water.nothing_to_water',
-        hintKey: 'errors.farm.water_hint',
+        hintKey: next ? 'first_hour.water_next_hint' : 'first_hour.water_none_hint',
+        params: next ? { relative: discordTimestamp(next, 'R') } : {},
       });
     }
 
@@ -571,7 +635,7 @@ export async function harvest(
   const balance = getBalance();
   const now = new Date();
   const world = await getWorldState(now);
-  const modifiers = await getFarmModifiers(player, { coopLevel: input.coopLevel, now });
+  const modifiers = await farmModifiersFor(player, now, input.coopLevel);
   const context = growthContext(world, modifiers);
 
   return withTransaction(async (tx) => {
@@ -859,21 +923,29 @@ export async function fertilize(
   }
 
   const now = new Date();
-  const modifiers = await getFarmModifiers(player, { now });
+  const modifiers = await farmModifiersFor(player, now);
 
   return withTransaction(async (tx) => {
     const rows = await farmRepo.listPlots(player.farmId, tx);
-    const candidates = rows
+    const fertilizable = rows
       .filter(({ plot }) => plot.state !== 'locked')
       .filter(({ plot }) => (input.slot ? plot.slot === input.slot : true))
-      .filter(({ plot }) => effectiveFertility(plot, now, balance) < balance.fertility.max)
-      .slice(0, input.all ? 64 : 1);
+      .filter(({ plot }) => effectiveFertility(plot, now, balance) < balance.fertility.max);
 
-    if (candidates.length === 0) {
+    if (fertilizable.length === 0) {
       throw gameError('invalid_state', 'No plot can be fertilized further.', {
         i18nKey: 'errors.farm.fully_fertilized',
       });
     }
+
+    // Autant de parcelles que de sacs : 3 sacs pour 9 parcelles en fertilisent
+    // 3, au lieu d'échouer sur « Il vous faut 9× ». Sans aucun sac, `consume`
+    // ci-dessous garde son refus habituel.
+    const owned = await inventoryRepo.countItem(player.id, input.fertilizerKey, tx);
+    const candidates = fertilizable.slice(
+      0,
+      input.all ? Math.max(1, batchCount(fertilizable.length, owned)) : 1,
+    );
 
     await inventoryService.consume(player.id, input.fertilizerKey, candidates.length, tx, player.locale);
     await consumeEnergy(player.id, 'fertilize', tx, {
@@ -931,7 +1003,7 @@ export async function weed(
 ): Promise<{ slots: number[]; weedsCollected: number }> {
   const balance = getBalance();
   const now = new Date();
-  const modifiers = await getFarmModifiers(player, { now });
+  const modifiers = await farmModifiersFor(player, now);
 
   return withTransaction(async (tx) => {
     const rows = await farmRepo.listPlots(player.farmId, tx);
@@ -975,7 +1047,7 @@ export async function treatPest(
   input: { slot: number },
 ): Promise<{ slot: number; pestType: PestType; usedItem: boolean; tracking: TrackResult }> {
   const now = new Date();
-  const modifiers = await getFarmModifiers(player, { now });
+  const modifiers = await farmModifiersFor(player, now);
 
   return withTransaction(async (tx) => {
     const plot = await farmRepo.lockPlot(tx, player.farmId, input.slot);

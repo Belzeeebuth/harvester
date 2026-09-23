@@ -1,7 +1,7 @@
 {
   "$comment": "Carte postale de la ferme (/postcard, src/render/postcard.ts) : embed public, textes dessinés DANS l'image (render.postcard.*) et texte alternatif (render_alt.postcard.*). Fragment fusionné avec fr.json au chargement ; même arborescence que en/postcard.json.",
   "postcard": {
-    "title": "📮 Carte postale de {name}",
+    "title": "📮 Carte postale · {name}",
     "body": "{name} vous envoie une carte postale de la ferme « {farm} ».",
     "footer": "Envoyez la vôtre avec /postcard"
   },

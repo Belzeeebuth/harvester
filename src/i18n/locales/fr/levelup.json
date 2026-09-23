@@ -1,0 +1,34 @@
+{
+  "$comment": "Bloc de montée de niveau commun à toutes les sources d'XP (framework/levelup.ts) et niveaux de déblocage affichés par /help et les messages de blocage.",
+  "levelup": {
+    "title": "🎉 Niveau {level} atteint",
+    "title_multi": "🎉 Niveau {level} atteint (+{gained} niveaux)",
+    "reward_line": "Récompense : {rewards}",
+    "unlocked_header": "**Nouveautés débloquées**",
+    "group_line": "{label} : {list}",
+    "more": " · et {count} de plus",
+    "tier_name": "{name} palier {tier}",
+    "next_line": "-# Prochain déblocage au niveau {level} : {list}",
+    "no_unlock": "Continuez sur votre lancée.",
+    "groups": {
+      "feature": "✨ Fonctionnalités",
+      "crop": "🌱 Cultures",
+      "animal": "🐄 Animaux",
+      "building": "🏗️ Bâtiments",
+      "building_tier": "⬆️ Améliorations",
+      "recipe": "🛠️ Recettes",
+      "item": "🧰 Boutique",
+      "pet": "🐾 Compagnons"
+    },
+    "features": {
+      "trade": "échanges et hôtel des ventes (`/trade`, `/auction`)",
+      "gift": "cadeaux (`/gift`)",
+      "coop_create": "création de coopérative (`/coop create`)",
+      "fishing": "pêche (`/fish`)",
+      "mining": "mine (`/mine`)",
+      "black_market": "marché noir (`/black-market`)",
+      "prestige": "renaissance (`/prestige`)",
+      "bank_tier": "banque palier {tier} (`/bank`)"
+    }
+  }
+}

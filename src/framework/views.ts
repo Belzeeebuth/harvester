@@ -7,6 +7,7 @@ import * as craftService from '../services/craft.service';
 import * as farmService from '../services/farm.service';
 import * as inventoryService from '../services/inventory.service';
 import * as marketService from '../services/market.service';
+import { getEnergy } from '../services/player.service';
 import * as progressionService from '../services/progression.service';
 import { getWorldState } from '../services/world.service';
 import { NO_IMAGE, renderAnimalsImage, renderFarmImage, type AnimalsRenderInput } from '../render';
@@ -56,6 +57,10 @@ export async function farmView(
   const herd = await animalService.getHerd(player, context.now);
 
   const xpForNext = (await import('../game/xp')).xpForNextLevel(player.level, context.balance);
+  // Énergie du joueur qui regarde sa propre ferme (pas lors d'une visite).
+  const energy = !options.readOnly && context.balance.energy.enabled
+    ? await getEnergy(player.id, context.now)
+    : null;
 
   const image = player.compactMode ? NO_IMAGE : await renderFarmImage({
     locale: context.locale,
@@ -90,6 +95,15 @@ export async function farmView(
     description: [
       `**${view.world.weather.emoji} ${view.world.weather.label}** · ${view.world.weather.description}`,
       view.world.weather.freeWatering ? t('farm.free_watering_today') : '',
+      energy
+        ? t('profile.energy_line', {
+          current: energy.current,
+          max: energy.max,
+          fullPart: energy.fullAt
+            ? t('profile.energy_full_at', { relative: discordTimestamp(energy.fullAt, 'R') })
+            : '',
+        })
+        : '',
       '',
       t('farm.summary', { ready: counts.ready, growing: counts.growing, empty: counts.empty, locked: counts.locked }),
       counts.pests > 0 ? t('farm.pests_warning', { count: counts.pests }) : '',
@@ -327,7 +341,7 @@ export async function inventoryView(
   });
 
   const embed = baseEmbed({
-    title: t('inventory.title', { name: `${player.username}’s` }),
+    title: t('inventory.title', { name: player.username }),
     description: lines.join('\n') || `*${t('inventory.empty_category')}*`,
     color: COLORS.info,
     fields: [
@@ -412,6 +426,7 @@ export async function inventoryView(
 export function shopChoices(
   entries: marketService.ShopEntry[],
   context: Pick<CommandContext, 't' | 'locale' | 'player'>,
+  limit = 25,
 ): Array<{ label: string; value: string; emoji: string; description: string }> {
   const { t, locale, player } = context;
   const rank = (entry: marketService.ShopEntry): number =>
@@ -419,7 +434,7 @@ export function shopChoices(
 
   return [...entries]
     .sort((a, b) => rank(a) - rank(b))
-    .slice(0, 25)
+    .slice(0, limit)
     .map((entry) => {
       const price = `${formatNumber(entry.price, locale)} ${entry.currency === 'gems' ? t('common.gems') : t('common.coins')}`;
       const blocked =
@@ -437,11 +452,60 @@ export function shopChoices(
     });
 }
 
+/** Menus d'achat au plus par écran : quatre menus et la rangée de filtres font les cinq rangées de Discord. */
+const SHOP_MENU_MAX = 4;
+
+/**
+ * Menus d'achat découpés par 25 options. Un menu unique coupait les graines
+ * au-delà de la 25e option : un joueur avancé ne pouvait plus atteindre ses
+ * dernières cultures. Chaque menu porte son rang dans son identifiant, Discord
+ * refusant deux composants au même `custom_id`.
+ */
+function shopSelectRows(
+  choices: ReturnType<typeof shopChoices>,
+  ownerId: string,
+  placeholder: string,
+): ReturnType<typeof selectRow>[] {
+  const pages = Math.max(1, Math.min(SHOP_MENU_MAX, Math.ceil(choices.length / 25)));
+  return Array.from({ length: pages }, (_, index) =>
+    selectRow(
+      select({
+        namespace: 'shop',
+        action: 'buy',
+        ownerId,
+        params: index === 0 ? [] : [index],
+        placeholder: pages > 1 ? `${placeholder} (${index + 1}/${pages})` : placeholder,
+        choices: choices.slice(index * 25, (index + 1) * 25),
+      }),
+    ),
+  );
+}
+
+/** Champs d'embed d'une catégorie, découpés sous la limite de 1024 caractères de Discord. */
+function shopFieldChunks(name: string, lines: string[]): Array<{ name: string; value: string }> {
+  const chunks: string[] = [];
+  let current = '';
+  for (const line of lines) {
+    if (current && current.length + line.length + 1 > 1024) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current = current ? `${current}\n${line}` : line;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks.map((value, index) => ({ name: index === 0 ? name : '\u200b', value }));
+}
+
 export async function shopView(context: CommandContext, category?: string): Promise<View> {
   const player = context.player;
   const t = context.t;
   const locale = context.locale;
-  const entries = await marketService.getShop(context.now, context.locale);
+  // Graines : celles du niveau du joueur et un avant-goût des suivantes (41 au total).
+  const entries = marketService.seedShopWindow(
+    await marketService.getShop(context.now, context.locale),
+    player.level,
+  );
   const filtered = category ? entries.filter((entry) => entry.category === category) : entries;
 
   const grouped = new Map<string, typeof filtered>();
@@ -458,11 +522,10 @@ export async function shopView(context: CommandContext, category?: string): Prom
     return key;
   };
 
-  const fields = [...grouped.entries()].map(([key, list]) => ({
-    name: categoryTitle(key),
-    value: list
-      .slice(0, 10)
-      .map((entry) => {
+  const fields = [...grouped.entries()].flatMap(([key, list]) =>
+    shopFieldChunks(
+      categoryTitle(key),
+      list.map((entry) => {
         const price = `${formatNumber(entry.price, locale)} ${entry.currency === 'gems' ? '💎' : COIN}`;
         const discount = entry.discountPercent > 0 ? ` (-${entry.discountPercent} %)` : '';
         const stock =
@@ -473,9 +536,9 @@ export async function shopView(context: CommandContext, category?: string): Prom
               : ` · ${t('shop.in_stock', { remaining: entry.stockRemaining })}`;
         const level = entry.requiredLevel > player.level ? ` 🔒 ${t('common.level_abbr', { level: entry.requiredLevel })}` : '';
         return `${entry.emoji} **${entry.name}** · ${price}${discount}${stock}${level}`;
-      })
-      .join('\n'),
-  }));
+      }),
+    ),
+  );
 
   const first = entries[0];
   const embed = baseEmbed({
@@ -490,15 +553,7 @@ export async function shopView(context: CommandContext, category?: string): Prom
   return {
     embeds: [embed],
     components: [
-      selectRow(
-        select({
-          namespace: 'shop',
-          action: 'buy',
-          ownerId: player.discordId,
-          placeholder: t('shop.buy_placeholder'),
-          choices: shopChoices(filtered, context),
-        }),
-      ),
+      ...shopSelectRows(shopChoices(filtered, context, SHOP_MENU_MAX * 25), player.discordId, t('shop.buy_placeholder')),
       row(
         button({
           namespace: 'shop',
@@ -816,7 +871,7 @@ export async function animalsView(context: CommandContext, page = 1): Promise<Vi
   });
 
   const embed = baseEmbed({
-    title: t('animals.title', { name: `${player.username}’s` }),
+    title: t('animals.title', { name: player.username }),
     description: lines.join('\n\n') || t('animals.empty'),
     color: herd.totals.readyToCollect > 0 ? COLORS.success : COLORS.primary,
     fields: [
@@ -936,7 +991,7 @@ export async function questsView(
   const claimable = quests.filter((quest) => quest.status === 'completed');
 
   const embed = baseEmbed({
-    title: t('quests.title', { name: `${player.username}'s` }),
+    title: t('quests.title', { name: player.username }),
     description:
       claimable.length > 0
         ? t('quests.rewards_waiting', { count: claimable.length })
@@ -1038,7 +1093,7 @@ export async function coopView(context: CommandContext): Promise<View> {
                 publics
                   .map(
                     (coop) =>
-                      `${coop.emblem} **${coop.name}** \`[${coop.tag}]\` · lvl ${coop.level} · ${coop.memberCount}/${coop.memberLimit} ${t('common.members').toLowerCase()}`,
+                      `${coop.emblem} **${coop.name}** \`[${coop.tag}]\` · ${t('common.level_abbr', { level: coop.level })} · ${coop.memberCount}/${coop.memberLimit} ${t('common.members').toLowerCase()}`,
                   )
                   .join('\n') || t('coop.no_public_coops'),
             },
@@ -1051,7 +1106,10 @@ export async function coopView(context: CommandContext): Promise<View> {
             namespace: 'coop',
             action: 'create',
             ownerId: player.discordId,
-            label: t('coop.create_button'),
+            // Le niveau requis se lit sur le bouton, avant même de cliquer.
+            label: player.level < context.balance.coop.creationMinLevel
+              ? `${t('coop.create_button')} 🔒 ${t('common.level_abbr', { level: context.balance.coop.creationMinLevel })}`
+              : t('coop.create_button'),
             emoji: '➕',
             style: ButtonStyle.Success,
           }),

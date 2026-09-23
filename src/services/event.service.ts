@@ -4,7 +4,7 @@ import { gameError } from '../utils/errors';
 import * as progressionRepo from '../repositories/progression.repo';
 import * as economyService from './economy.service';
 import * as inventoryService from './inventory.service';
-import { grantXp } from './player.service';
+import { grantXp, type LevelUpSummary } from './player.service';
 import { eventOccurrenceKey, getActiveEvents } from './world.service';
 import type { PlayerContext } from '../types';
 
@@ -122,6 +122,7 @@ export interface EventClaimResult {
   xp: number;
   items: Array<{ itemKey: string; quantity: number }>;
   titles: string[];
+  levelUp: LevelUpSummary | null;
 }
 
 /**
@@ -145,7 +146,7 @@ export async function claimEventRewards(
       eventOccurrenceKey(event),
     );
 
-    const result: EventClaimResult = { tiers: [], coins: 0, gems: 0, xp: 0, items: [], titles: [] };
+    const result: EventClaimResult = { tiers: [], coins: 0, gems: 0, xp: 0, items: [], titles: [], levelUp: null };
     const tiers = [...event.rewardTiers].sort((a, b) => a.points - b.points);
     for (const tier of tiers) {
       if (tier.points > row.points || row.claimedTiers.includes(tier.points)) continue;
@@ -174,8 +175,15 @@ export async function claimEventRewards(
         result.items.push(...rewards.items);
       }
       if (rewards.xp) {
-        await grantXp(player.id, rewards.xp, tx);
+        const xpResult = await grantXp(player.id, rewards.xp, tx);
         result.xp += rewards.xp;
+        if (xpResult.levelsGained > 0) {
+          // Plusieurs paliers peuvent chacun faire monter de niveau : on cumule.
+          result.levelUp = {
+            level: xpResult.level,
+            levelsGained: (result.levelUp?.levelsGained ?? 0) + xpResult.levelsGained,
+          };
+        }
       }
       if (rewards.title) {
         await progressionRepo.setUserTitle(tx, player.id, rewards.title);

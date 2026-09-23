@@ -9,7 +9,7 @@ import * as playerRepo from '../repositories/player.repo';
 import * as progressionRepo from '../repositories/progression.repo';
 import * as economyService from './economy.service';
 import * as inventoryService from './inventory.service';
-import { grantXp } from './player.service';
+import { grantXp, levelUpOf, type LevelUpSummary } from './player.service';
 import { getWorldState } from './world.service';
 import {
   calendarDaysBetween,
@@ -698,6 +698,7 @@ export interface DailyResult {
   streakBroken: boolean;
   usedFreeze: boolean;
   nextClaimAt: Date;
+  levelUp: LevelUpSummary | null;
 }
 
 /**
@@ -807,7 +808,7 @@ export async function claimDaily(
       // Récompense quotidienne : ne peut pas être refusée sans être perdue.
       await inventoryService.addItems(player.id, items, tx, { allowOverflow: true });
     }
-    await grantXp(player.id, xp, tx);
+    const levelUp = levelUpOf(await grantXp(player.id, xp, tx));
 
     // Assigne d'abord les quêtes du cycle : une réclamation faite avant la
     // première ouverture de `/quests` doit compter pour `login_streak`.
@@ -829,6 +830,7 @@ export async function claimDaily(
       streakBroken,
       usedFreeze,
       nextClaimAt: nextMidnight(now, timezone),
+      levelUp,
     };
   });
 }
@@ -846,7 +848,14 @@ export async function listAchievements(userId: string, category?: string, locale
 export async function claimAchievement(
   player: PlayerContext,
   achievementKey: string,
-): Promise<{ name: string; coins: number; gems: number; title: string | null; items: Array<{ itemKey: string; quantity: number }> }> {
+): Promise<{
+  name: string;
+  coins: number;
+  gems: number;
+  title: string | null;
+  items: Array<{ itemKey: string; quantity: number }>;
+  levelUp: LevelUpSummary | null;
+}> {
   const config = getConfig(player.locale);
   const achievement = config.achievements.get(achievementKey);
   if (!achievement) {
@@ -893,9 +902,9 @@ export async function claimAchievement(
         allowOverflow: true,
       });
     }
-    if (achievement.rewardXp > 0) {
-      await grantXp(player.id, achievement.rewardXp, tx);
-    }
+    const levelUp = achievement.rewardXp > 0
+      ? levelUpOf(await grantXp(player.id, achievement.rewardXp, tx))
+      : null;
     if (achievement.rewardTitle) {
       await tx
         .update((await import('../db/schema')).users)
@@ -909,6 +918,7 @@ export async function claimAchievement(
       gems: achievement.rewardGems,
       title: achievement.rewardTitle ?? null,
       items: achievement.rewardItems,
+      levelUp,
     };
   });
 }
@@ -955,7 +965,13 @@ export async function claimPassTier(
   player: PlayerContext,
   tier: number,
   premium: boolean,
-): Promise<{ coins: number; gems: number; items: Array<{ itemKey: string; quantity: number }>; title?: string }> {
+): Promise<{
+  coins: number;
+  gems: number;
+  items: Array<{ itemKey: string; quantity: number }>;
+  title?: string;
+  levelUp: LevelUpSummary | null;
+}> {
   const pass = getActiveSeasonPass();
   if (!pass) {
     throw gameError('not_found', 'No active season pass.', {
@@ -1004,15 +1020,14 @@ export async function claimPassTier(
       // Récompense du passe de saison : ne peut pas être refusée sans être perdue.
       await inventoryService.addItems(player.id, rewards.items, tx, { allowOverflow: true });
     }
-    if (rewards.xp) {
-      await grantXp(player.id, rewards.xp, tx);
-    }
+    const levelUp = rewards.xp ? levelUpOf(await grantXp(player.id, rewards.xp, tx)) : null;
 
     return {
       coins: rewards.coins ?? 0,
       gems: rewards.gems ?? 0,
       items: rewards.items ?? [],
       ...(rewards.title ? { title: rewards.title } : {}),
+      levelUp,
     };
   });
 }

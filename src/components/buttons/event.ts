@@ -2,6 +2,7 @@ import type { ButtonInteraction } from 'discord.js';
 import { eventView } from '../../commands/world';
 import { successEmbed } from '../../framework/ui';
 import { followUpEphemeral } from '../../framework/interaction';
+import { withLevelUp } from '../../framework/levelup';
 import * as eventService from '../../services/event.service';
 import { describeItems } from '../../services/inventory.service';
 import { paramString } from '../../utils/custom-id';
@@ -14,11 +15,16 @@ import type { ButtonHandler } from '../../types';
  */
 const eventClaim: ButtonHandler = {
   namespace: 'event',
-  actions: ['claim'],
+  actions: ['claim', 'open'],
   lockKey: 'event-action',
 
   async execute(interaction: ButtonInteraction, parsed, context): Promise<void> {
     await interaction.deferUpdate();
+    if (parsed.action === 'open') {
+      // Raccourci proposé sur les erreurs liées à un événement.
+      await interaction.editReply(await eventView(context, interaction.user.id));
+      return;
+    }
     const { t, locale } = context;
     const result = await eventService.claimEventRewards(
       context.player,
@@ -38,7 +44,7 @@ const eventClaim: ButtonHandler = {
     await interaction.editReply(await eventView(context, interaction.user.id));
     await followUpEphemeral(interaction, {
       embeds: [
-        successEmbed(
+        withLevelUp(successEmbed(
           t('event.claim_title', { count: result.tiers.length }),
           [
             rewards ? t('event.claim_rewards_line', { rewards }) : '',
@@ -46,7 +52,7 @@ const eventClaim: ButtonHandler = {
           ]
             .filter(Boolean)
             .join('\n'),
-        ),
+        ), result.levelUp, t, locale),
       ],
     });
   },

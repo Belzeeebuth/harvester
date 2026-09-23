@@ -1,4 +1,5 @@
 import {
+  ButtonStyle,
   MessageFlags,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
@@ -18,7 +19,7 @@ import { LockBusyError } from '../utils/lock';
 import { NotOwnerError, parseCustomId } from '../utils/custom-id';
 import { moduleLogger } from '../utils/logger';
 import { discordTimestamp, formatDuration } from '../utils/format';
-import { COLORS, baseEmbed, errorEmbed, suggestionRow, warningEmbed } from './ui';
+import { COLORS, baseEmbed, button, errorEmbed, row, suggestionRow, warningEmbed } from './ui';
 import type { CommandContext, PlayerContext } from '../types';
 
 const log = moduleLogger('interaction');
@@ -396,6 +397,29 @@ export function noAccountEmbed(locale?: string | null) {
     description: t('common.no_account'),
     color: COLORS.info,
   });
+}
+
+/**
+ * Réponse complète « pas encore de ferme » : l'embed et un bouton qui crée la
+ * ferme (`start:create`), pour ne pas laisser le joueur chercher `/start`.
+ */
+export function noAccountReply(interaction: { locale?: string | null; user: { id: string } }) {
+  const t = translatorFor(normalizeLocale(interaction.locale));
+  return {
+    embeds: [noAccountEmbed(interaction.locale)],
+    components: [
+      row(
+        button({
+          namespace: 'start',
+          action: 'create',
+          ownerId: interaction.user.id,
+          label: t('onboarding.start_button'),
+          emoji: '🌱',
+          style: ButtonStyle.Success,
+        }),
+      ),
+    ],
+  };
 }
 
 /** Message de cooldown lisible. */

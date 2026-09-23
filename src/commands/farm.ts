@@ -3,6 +3,10 @@ import { harvestKeyOf, seedKeyOf } from '../config';
 import { farmView, plotsView } from '../framework/views';
 import { COLORS, baseEmbed, successEmbed } from '../framework/ui';
 import { safeReply } from '../framework/interaction';
+import { harvestFollowUpRows } from '../framework/selling';
+import * as inventoryService from '../services/inventory.service';
+import { withLevelUp } from '../framework/levelup';
+import { describeItems } from '../services/inventory.service';
 import * as farmService from '../services/farm.service';
 import { qualityDistribution } from '../game/quality';
 import { expectedYield } from '../game/harvest';
@@ -91,7 +95,7 @@ const planter: Command = {
     .addIntegerOption((option) =>
       option
         .setName('quantity')
-        .setDescription('How many plots to plant (default: 1)')
+        .setDescription('How many plots to plant (default: as many as your seeds allow)')
         .setMinValue(1)
         .setMaxValue(64)
         .setRequired(false),
@@ -100,16 +104,13 @@ const planter: Command = {
 
   async execute(interaction, context): Promise<void> {
     await interaction.deferReply();
-    const cropKey = interaction.options.getString('seed', true);
+    // Nom tapé sans choisir dans l'autocomplétion (« Oignon ») : résolu vers la clé.
+    const cropKey = inventoryService.resolveCropInput(interaction.options.getString('seed', true));
     const slot = interaction.options.getInteger('plot') ?? undefined;
-    const quantity = interaction.options.getInteger('quantity') ?? 1;
+    // Sans quantité : autant de parcelles libres que de graines possédées.
+    const quantity = interaction.options.getInteger('quantity') ?? undefined;
 
-    const result = await farmService.plant(context.player, {
-      cropKey,
-      slot,
-      quantity,
-      coopLevel: 0,
-    });
+    const result = await farmService.plant(context.player, { cropKey, slot, quantity });
 
     const embed = successEmbed(
       context.t('farm.plant_success_title', { emoji: result.emoji, cropName: result.cropName }),
@@ -126,6 +127,7 @@ const planter: Command = {
           ? context.t('farm.plant_body_water', { count: result.waterNeeded })
           : '',
         result.offSeason ? context.t('farm.plant_body_off_season') : '',
+        offSeasonAdvice(result, context.t),
       ]
         .filter(Boolean)
         .join('\n'),
@@ -185,9 +187,24 @@ const recolter: Command = {
     const slot = interaction.options.getInteger('plot') ?? undefined;
 
     const summary = await farmService.harvest(context.player, { slot, all: slot === undefined });
-    await interaction.editReply({ embeds: [buildHarvestEmbed(summary, context.t, context.locale)] });
+    await interaction.editReply({
+      embeds: [buildHarvestEmbed(summary, context.t, context.locale)],
+      // Suite naturelle d'une récolte : la vendre sans retaper `/sell`.
+      components: harvestFollowUpRows(summary, interaction.user.id, context.t),
+    });
   },
 };
+
+/** Conseil affiché sous une plantation hors saison : les cultures de saison à la portée du joueur. */
+export function offSeasonAdvice(
+  result: Pick<farmService.PlantResult, 'offSeason' | 'inSeasonAlternatives'>,
+  t: Translator,
+): string {
+  if (!result.offSeason || result.inSeasonAlternatives.length === 0) return '';
+  return t('first_hour.off_season_advice', {
+    crops: result.inSeasonAlternatives.map((crop) => `${crop.emoji} ${crop.name}`).join(' · '),
+  });
+}
 
 export function buildHarvestEmbed(summary: farmService.HarvestSummary, t: Translator, locale?: string) {
   const lines = summary.plots.map((plot) => {
@@ -195,7 +212,7 @@ export function buildHarvestEmbed(summary: farmService.HarvestSummary, t: Transl
       plot.result.quality === 'normal'
         ? ''
         : ` ${qualityIcon(plot.result.quality)} ${t(`common.quality.${plot.result.quality}`)}`;
-    const mutation = plot.result.mutation === 'none' ? '' : ` ${mutationIcon(plot.result.mutation)} **${plot.result.mutation}**`;
+    const mutation = plot.result.mutation === 'none' ? '' : ` ${mutationIcon(plot.result.mutation)} **${t(`render_alt.farm.mutation.${plot.result.mutation}`)}**`;
     const regrow =
       plot.regrew && plot.nextReadyAt
         ? ` ${t('farm.harvest_regrow', { relative: discordTimestamp(plot.nextReadyAt, 'R') })}`
@@ -228,22 +245,11 @@ export function buildHarvestEmbed(summary: farmService.HarvestSummary, t: Transl
   if (summary.seedsRecovered.length > 0) {
     embed.addFields({
       name: t('farm.harvest_seed_store_title'),
-      value: summary.seedsRecovered
-        .map((seed) => `${seed.quantity}× ${seed.itemKey.replace('seed_', '')}`)
-        .join(', '),
+      value: describeItems(summary.seedsRecovered, locale),
     });
   }
-  if (summary.levelUp) {
-    embed.addFields({
-      name: t('common.level_up_title'),
-      value: t('farm.harvest_level_up_body', {
-        level: summary.levelUp.level,
-        gained: summary.levelUp.levelsGained,
-        coins: formatCoins(summary.levelUp.rewardCoins, false, locale),
-        gems: summary.levelUp.rewardGems > 0 ? ` + ${summary.levelUp.rewardGems} 💎` : '',
-      }),
-    });
-  }
+  // Bloc commun : récompense, déblocages du niveau atteint, prochain palier.
+  withLevelUp(embed, summary.levelUp, t, locale);
   appendTracking(embed, summary.tracking, t);
 
   return embed;

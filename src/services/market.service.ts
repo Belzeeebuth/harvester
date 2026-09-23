@@ -1,4 +1,4 @@
-import { balance as getBalance, getConfig, type ItemConfig } from '../config';
+import { balance as getBalance, getConfig, seedKeyOf, type CropConfig, type ItemConfig } from '../config';
 import { getDb, lockUserRow, withTransaction, type Executor } from '../db/client';
 import { scaleMoney, scaleMoneyUp } from '../game/money';
 import {
@@ -180,6 +180,8 @@ export async function sell(
   player: PlayerContext,
   input: {
     itemKey?: string;
+    /** Plusieurs objets d'un coup (bouton « vendre la récolte »), toutes piles comprises. */
+    itemKeys?: readonly string[];
     quantity?: number | 'all';
     category?: string;
     quality?: Quality;
@@ -205,6 +207,7 @@ export async function sell(
       if (stack.locked) return false;
       if (!stack.sellable) return false;
       if (input.itemKey && stack.itemKey !== input.itemKey) return false;
+      if (input.itemKeys && !input.itemKeys.includes(stack.itemKey)) return false;
       if (input.quality && stack.quality !== input.quality) return false;
       if (input.mutation && stack.mutation !== input.mutation) return false;
       return true;
@@ -342,6 +345,69 @@ export interface ShopEntry {
 /** Catégorie réservée au marché noir dans `shop_stock` — exclue de la boutique normale. */
 const BLACK_MARKET_CATEGORY = 'black_market';
 
+/**
+ * Stock « illimité » : graines et fournitures permanentes. La valeur sert de
+ * marqueur (l'affichage masque le stock à partir de là) et `buy` ne réserve
+ * jamais ce stock, sans quoi un serveur actif finirait par épuiser les graines
+ * de blé de tout le monde avant minuit.
+ */
+export const UNLIMITED_STOCK = 999;
+
+export function isUnlimitedStock(entry: { stockTotal: number }): boolean {
+  return entry.stockTotal >= UNLIMITED_STOCK;
+}
+
+/**
+ * Cultures dont la graine est en vente permanente : toutes celles qui sont
+ * actives et ont un prix. Aucune culture n'est aujourd'hui réservée à un
+ * événement ou à la serre (crops.json n'a pas de tel marqueur) ; une graine à
+ * prix nul resterait hors boutique (la contrainte `price > 0` l'interdit).
+ */
+export function permanentSeedCrops(crops: readonly CropConfig[]): CropConfig[] {
+  return crops.filter((crop) => crop.enabled && crop.seedPrice > 0);
+}
+
+function permanentSeedRows(
+  crops: readonly CropConfig[],
+  rotationDate: string,
+  expiresAt: Date,
+): Array<Parameters<typeof economyRepo.insertShopStock>[0][number]> {
+  return permanentSeedCrops(crops).map((crop) => ({
+    id: uuidv7(),
+    itemKey: seedKeyOf(crop.key),
+    rotationDate,
+    category: 'seeds',
+    price: crop.seedPrice,
+    currency: 'coins' as const,
+    stockTotal: UNLIMITED_STOCK,
+    stockRemaining: UNLIMITED_STOCK,
+    requiredLevel: crop.requiredLevel,
+    expiresAt,
+  }));
+}
+
+/** Nombre de graines verrouillées montrées en avant-goût, au-delà du niveau du joueur. */
+export const SEED_PREVIEW_LOCKED = 3;
+
+/**
+ * Graines affichées à un joueur : toutes celles de son niveau, puis les
+ * `preview` suivantes encore verrouillées, par niveau croissant. Les autres
+ * articles passent tels quels. Avec 41 graines, tout lister noyait l'écran et
+ * dépassait les 25 options d'un menu Discord.
+ */
+export function seedShopWindow(
+  entries: readonly ShopEntry[],
+  level: number,
+  preview = SEED_PREVIEW_LOCKED,
+): ShopEntry[] {
+  const seeds = entries
+    .filter((entry) => entry.category === 'seeds')
+    .sort((a, b) => a.requiredLevel - b.requiredLevel || a.price - b.price);
+  const unlocked = seeds.filter((entry) => entry.requiredLevel <= level);
+  const locked = seeds.filter((entry) => entry.requiredLevel > level).slice(0, preview);
+  return [...entries.filter((entry) => entry.category !== 'seeds'), ...unlocked, ...locked];
+}
+
 function toShopEntries(
   rows: Awaited<ReturnType<typeof economyRepo.listShopStock>>,
   config: ReturnType<typeof getConfig>,
@@ -414,6 +480,18 @@ export async function getShop(now: Date = new Date(), locale?: string): Promise<
   if (rows.length === 0) {
     await rotateShop(now);
     rows = (await economyRepo.listShopStock(rotationDate)).filter(dailyRows);
+  } else {
+    // Graines permanentes manquantes (rotation tirée avant leur ajout, culture
+    // activée à chaud) : insérées à la volée. `onConflictDoNothing` rend
+    // l'opération sûre entre shards.
+    const present = new Set(rows.filter((row) => row.category === 'seeds').map((row) => row.itemKey));
+    const missing = permanentSeedCrops(config.cropList).filter((crop) => !present.has(seedKeyOf(crop.key)));
+    if (missing.length > 0) {
+      await economyRepo.insertShopStock(
+        permanentSeedRows(missing, rotationDate, new Date(`${rotationDate}T23:59:59.000Z`)),
+      );
+      rows = (await economyRepo.listShopStock(rotationDate)).filter(dailyRows);
+    }
   }
 
   return toShopEntries(rows, config);
@@ -505,24 +583,11 @@ export async function rotateShop(now: Date = new Date()): Promise<number> {
 
   const rows: Array<Parameters<typeof economyRepo.insertShopStock>[0][number]> = [];
 
-  // 1. Graines des cinq premières cultures : socle permanent.
-  const basicSeeds = config.cropList
-    .filter((crop) => crop.enabled && crop.requiredLevel <= 5)
-    .slice(0, 5);
-  for (const crop of basicSeeds) {
-    rows.push({
-      id: uuidv7(),
-      itemKey: `seed_${crop.key}`,
-      rotationDate,
-      category: 'seeds',
-      price: crop.seedPrice,
-      currency: 'coins',
-      stockTotal: 999,
-      stockRemaining: 999,
-      requiredLevel: crop.requiredLevel,
-      expiresAt,
-    });
-  }
+  // 1. Graines de TOUTES les cultures : socle permanent, stock illimité. Seules
+  // les cinq premières l'étaient ; les 36 autres ne passaient que par la
+  // rotation du jour (environ un jour sur dix, stock partagé par tout le
+  // serveur), si bien que débloquer une culture ne servait presque à rien.
+  rows.push(...permanentSeedRows(config.cropList, rotationDate, expiresAt));
 
   // 2. Nourriture et matériaux : toujours disponibles, sans quoi l'élevage et la
   // construction se bloquent.
@@ -536,19 +601,20 @@ export async function rotateShop(now: Date = new Date()): Promise<number> {
       category: 'supplies',
       price: item.basePrice,
       currency: 'coins',
-      stockTotal: 999,
-      stockRemaining: 999,
+      stockTotal: UNLIMITED_STOCK,
+      stockRemaining: UNLIMITED_STOCK,
       requiredLevel: item.requiredLevel,
       expiresAt,
     });
   }
 
-  // 3. Emplacements tournants : consommables, outils, graines rares, cosmétiques.
+  // 3. Emplacements tournants : consommables, outils, cosmétiques. Les graines
+  // n'y figurent plus : toutes sont en vente permanente (étape 1).
   const pool = config.itemList.filter(
     (item) =>
       item.enabled &&
       item.basePrice + item.priceGems > 0 &&
-      ['consumable', 'tool', 'seed', 'cosmetic'].includes(item.category) &&
+      ['consumable', 'tool', 'cosmetic'].includes(item.category) &&
       !rows.some((row) => row.itemKey === item.key),
   );
 
@@ -660,8 +726,11 @@ export async function buy(
       }
     }
 
-    const reserved = await economyRepo.reserveShopStock(stock.id, quantity, tx);
-    if (!reserved) throw outOfStock(stock.stockRemaining);
+    // Stock illimité (graines, fournitures) : rien à réserver.
+    if (!isUnlimitedStock(stock)) {
+      const reserved = await economyRepo.reserveShopStock(stock.id, quantity, tx);
+      if (!reserved) throw outOfStock(stock.stockRemaining);
+    }
 
     const total = stock.price * quantity;
     await economyService.charge(
@@ -704,7 +773,9 @@ export async function buy(
       unitPrice: stock.price,
       total,
       currency: stock.currency,
-      stockRemaining: Math.max(0, stock.stockRemaining - quantity),
+      stockRemaining: isUnlimitedStock(stock)
+        ? stock.stockRemaining
+        : Math.max(0, stock.stockRemaining - quantity),
     };
   });
 }

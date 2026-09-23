@@ -1,0 +1,19 @@
+{
+  "$comment": "First hour of play: out of seeds, watering, season advice, selling after a harvest and from the inventory, seasonal starter kit (src/framework/selling.ts, src/services/farm.service.ts, src/commands/start.ts). Fragment merged into en.json at load time; same tree as fr/first_hour.json.",
+  "first_hour": {
+    "no_seeds": "You have no {emoji} {name} left.",
+    "no_seeds_hint": "Every seed of your level is on sale every day in the shop's seed aisle.",
+    "water_next_hint": "Next watering {relative}.",
+    "water_none_hint": "None of your planted crops will need water before harvest.",
+    "off_season_advice": "🌱 In season right now: {crops}",
+    "suggestion_seeds": "Buy seeds",
+    "sell_harvest_button": "Sell the harvest",
+    "sell_all_harvest_button": "Sell all harvests",
+    "sell_menu_body": "Pick an item to sell to the village (all its stacks go), or sell all your harvests at once. Locked stacks are never sold.\n`/auction sell`: offer a lot to other players (full price, 5% commission).",
+    "sell_menu_empty": "Nothing to sell yet. Harvest with `/harvest`, then come back here.",
+    "sell_menu_placeholder": "Sell an item…",
+    "sell_option_description": "About {value} at base price",
+    "kit_seed_line": "• {quantity}× {emoji} {name}",
+    "kit_seed_line_level": "• {quantity}× {emoji} {name} (from level {level})"
+  }
+}

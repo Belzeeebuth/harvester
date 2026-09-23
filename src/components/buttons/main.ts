@@ -1,10 +1,10 @@
 import { MessageFlags, type ButtonInteraction } from 'discord.js';
 import { buildHarvestEmbed, appendTracking } from '../../commands/farm';
 import { auctionListView } from '../../commands/trade';
-import { helpEmbed, TUTORIAL_STEPS } from '../../commands/start';
+import { helpEmbed, TUTORIAL_STEPS, tutorialParams } from '../../commands/start';
 import { sendLeaderboard, helpFarmer } from '../../commands/social';
 import { applyLocale, isSupported } from '../../commands/language';
-import { COLORS, baseEmbed, button, quantityModal, row, successEmbed, textModal } from '../../framework/ui';
+import { COLORS, baseEmbed, button, quantityModal, row, successEmbed, suggestionRow, textModal } from '../../framework/ui';
 import {
   animalsView,
   blackMarketView,
@@ -19,7 +19,12 @@ import {
   shopView,
 } from '../../framework/views';
 import { followUpEphemeral, replyEphemeral } from '../../framework/interaction';
+import { harvestFollowUpRows, sellMenuView } from '../../framework/selling';
+import { mergeLevelUps, withLevelUp, type LevelUpInfo } from '../../framework/levelup';
+import { recipesView } from '../../commands/craft';
+import { profileView, statsView } from '../../commands/profile';
 import * as animalService from '../../services/animal.service';
+import * as coopService from '../../services/coop.service';
 import * as craftService from '../../services/craft.service';
 import * as farmService from '../../services/farm.service';
 import * as fishingService from '../../services/fishing.service';
@@ -82,6 +87,7 @@ const farmButtons: ButtonHandler = {
         const summary = await farmService.harvest(context.player, { all: true });
         await followUpEphemeral(interaction, {
           embeds: [buildHarvestEmbed(summary, context.t, context.locale)],
+          components: harvestFollowUpRows(summary, interaction.user.id, context.t),
         });
         await interaction.editReply(await farmView(context));
         return;
@@ -164,6 +170,10 @@ const farmButtons: ButtonHandler = {
                 color: COLORS.warning,
               }),
             ],
+            // Sans graines, la seule suite utile : la boutique, rayon graines.
+            components: [suggestionRow('seeds', interaction.user.id, context.locale, context.t)].filter(
+              (entry) => entry !== undefined,
+            ),
           });
           return;
         }
@@ -262,15 +272,9 @@ const inventoryButtons: ButtonHandler = {
     }
 
     if (parsed.action === 'sell_menu') {
-      await replyEphemeral(interaction, {
-        embeds: [
-          baseEmbed({
-            title: context.t('economy.sell_menu_title'),
-            description: context.t('economy.sell_menu_body'),
-            color: COLORS.gold,
-          }),
-        ],
-      });
+      // Vente réelle (menu d'objets et « toutes les récoltes ») : ce bouton
+      // n'affichait que la syntaxe de `/sell`.
+      await replyEphemeral(interaction, await sellMenuView(context));
       return;
     }
 
@@ -288,11 +292,13 @@ const inventoryButtons: ButtonHandler = {
 
 const shopButtons: ButtonHandler = {
   namespace: 'shop',
-  actions: ['open', 'filter'],
+  // `seeds` : raccourci vers le rayon graines (suggestion d'erreur « plus de graines »).
+  actions: ['open', 'filter', 'seeds'],
 
   async execute(interaction: ButtonInteraction, parsed, context): Promise<void> {
     await interaction.deferUpdate();
-    const category = parsed.action === 'filter' ? paramString(parsed, 0, 'all') : 'all';
+    const category =
+      parsed.action === 'filter' ? paramString(parsed, 0, 'all') : parsed.action === 'seeds' ? 'seeds' : 'all';
     await interaction.editReply(await shopView(context, category === 'all' ? undefined : category));
   },
 };
@@ -394,6 +400,7 @@ const animalButtons: ButtonHandler = {
           context.t('animals.collect_title'),
           result.lines.map((line) => `${line.emoji} **${line.quantity}× ${line.itemName}**`).join('\n'),
         );
+        withLevelUp(embed, result.levelUp, context.t, context.locale);
         appendTracking(embed, result.tracking, context.t);
         await followUpEphemeral(interaction, { embeds: [embed] });
         await interaction.editReply(await animalsView(context));
@@ -484,7 +491,7 @@ const questButtons: ButtonHandler = {
       );
       await followUpEphemeral(interaction, {
         embeds: [
-          successEmbed(
+          withLevelUp(successEmbed(
             context.t('progression.quest_claim_title', { count: results.length }),
             context.t('progression.quest_claim_body', {
               coins: formatCoins(totals.coins, false, context.locale),
@@ -492,7 +499,7 @@ const questButtons: ButtonHandler = {
               xp: formatNumber(totals.xp, context.locale),
               list: results.map((result) => `• ${result.title}`).join('\n'),
             }),
-          ),
+          ), mergeLevelUps(results.map((result) => result.levelUp)), context.t, context.locale),
         ],
       });
       await interaction.editReply(await questsView(context));
@@ -519,12 +526,14 @@ const achievementButtons: ButtonHandler = {
     let coins = 0;
     let gems = 0;
     const names: string[] = [];
+    const levelUps: Array<LevelUpInfo | null> = [];
     for (const achievement of claimable) {
       try {
         const result = await progressionService.claimAchievement(context.player, achievement.key);
         coins += result.coins;
         gems += result.gems;
         names.push(result.name);
+        levelUps.push(result.levelUp);
       } catch {
         /* déjà réclamé entre-temps */
       }
@@ -532,7 +541,7 @@ const achievementButtons: ButtonHandler = {
 
     await interaction.editReply({
       embeds: [
-        successEmbed(
+        withLevelUp(successEmbed(
           context.t('progression.achv_claim_title', { count: names.length }),
           names.length > 0
             ? context.t('progression.achv_claim_body', {
@@ -541,7 +550,7 @@ const achievementButtons: ButtonHandler = {
                 list: names.map((name) => `• ${name}`).join('\n'),
               })
             : context.t('progression.achv_claim_none'),
-        ),
+        ), mergeLevelUps(levelUps), context.t, context.locale),
       ],
     });
   },
@@ -562,6 +571,7 @@ const passButtons: ButtonHandler = {
     let coins = 0;
     let gems = 0;
     let claimed = 0;
+    const levelUps: Array<LevelUpInfo | null> = [];
     for (const tier of pass.tiers) {
       if (tier.tier > pass.tier) continue;
 
@@ -581,6 +591,7 @@ const passButtons: ButtonHandler = {
           coins += result.coins;
           gems += result.gems;
           claimed += 1;
+          levelUps.push(result.levelUp);
         } catch {
           /* palier déjà réclamé, ou voie non débloquée */
         }
@@ -589,7 +600,7 @@ const passButtons: ButtonHandler = {
 
     await interaction.editReply({
       embeds: [
-        successEmbed(
+        withLevelUp(successEmbed(
           context.t('progression.pass_claim_result_title', { count: claimed }),
           claimed > 0
             ? context.t('progression.pass_claim_result_body', {
@@ -597,7 +608,7 @@ const passButtons: ButtonHandler = {
                 gems,
               })
             : context.t('progression.pass_claim_result_none'),
-        ),
+        ), mergeLevelUps(levelUps), context.t, context.locale),
       ],
     });
   },
@@ -620,6 +631,7 @@ const craftButtons: ButtonHandler = {
         context.t('craft.collect_title'),
         result.lines.map((line) => `${line.emoji} **${line.quantity}× ${line.itemName}**`).join('\n'),
       );
+      withLevelUp(embed, result.levelUp, context.t, context.locale);
       appendTracking(embed, result.tracking, context.t);
       await followUpEphemeral(interaction, { embeds: [embed] });
       await interaction.editReply(await productionView(context));
@@ -627,9 +639,9 @@ const craftButtons: ButtonHandler = {
     }
 
     if (parsed.action === 'recipes') {
-      await replyEphemeral(interaction, {
-        content: context.t('craft.recipes_hint'),
-      });
+      // La vue complète, et non plus un renvoi vers `/recipes`.
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await interaction.editReply(await recipesView(context));
       return;
     }
 
@@ -658,6 +670,8 @@ const coopButtons: ButtonHandler = {
 
   async execute(interaction: ButtonInteraction, parsed, context): Promise<void> {
     if (parsed.action === 'create') {
+      // Niveau et fonds vérifiés avant la fenêtre de saisie du nom.
+      coopService.assertCanCreateCoop(context.player);
       await interaction.showModal(
         textModal({
           namespace: 'coop',
@@ -726,7 +740,7 @@ const tutorialButtons: ButtonHandler = {
       embeds: [
         baseEmbed({
           title: `🎓 ${context.t(step.titleKey)}`,
-          description: context.t(step.bodyKey),
+          description: context.t(step.bodyKey, tutorialParams(context.config)),
           color: COLORS.info,
           footer: context.t('tutorial.footer'),
         }),
@@ -765,10 +779,12 @@ const tutorialButtons: ButtonHandler = {
 
 const settingsButtons: ButtonHandler = {
   namespace: 'settings',
-  actions: ['toggle'],
+  actions: ['toggle', 'dm_on'],
 
   async execute(interaction: ButtonInteraction, parsed, context): Promise<void> {
-    const field = paramString(parsed, 0);
+    // `dm_on` : proposition faite après `/start`. Elle ALLUME les messages
+    // privés sans jamais les éteindre, même en cas de double clic.
+    const field = parsed.action === 'dm_on' ? 'dmNotifications' : paramString(parsed, 0);
     const allowed = ['notifyCrops', 'notifyAnimals', 'notifyEnergy', 'notifyMarket', 'dailyReminder', 'dmNotifications'];
     if (!allowed.includes(field)) {
       await replyEphemeral(interaction, { content: context.t('settings.unknown_field') });
@@ -777,17 +793,20 @@ const settingsButtons: ButtonHandler = {
 
     const settings = await playerRepo.getSettings(context.player.id);
     const current = (settings as unknown as Record<string, boolean>)[field] ?? false;
-    await playerRepo.updateSettings(context.player.id, { [field]: !current });
+    const next = parsed.action === 'dm_on' ? true : !current;
+    await playerRepo.updateSettings(context.player.id, { [field]: next });
 
+    // L'avertissement « activez aussi les messages privés » n'a de sens que pour
+    // une alerte qu'on allume alors que les messages privés restent coupés.
+    const dmStillOff = field !== 'dmNotifications' && !settings?.dmNotifications && next;
     await replyEphemeral(interaction, {
       embeds: [
         successEmbed(
           context.t('settings.toggle_title'),
           context.t('settings.toggle_body', {
-            field,
-            state: !current ? context.t('common.enabled') : context.t('common.disabled'),
-          }) +
-            (!settings?.dmNotifications && !current ? context.t('settings.toggle_dm_warning') : ''),
+            field: context.t(`onboarding.settings_field.${field}`),
+            state: next ? context.t('common.enabled') : context.t('common.disabled'),
+          }) + (dmStillOff ? context.t('settings.toggle_dm_warning') : ''),
         ),
       ],
     });
@@ -878,12 +897,20 @@ const auctionButtons: ButtonHandler = {
 
 const profileButtons: ButtonHandler = {
   namespace: 'profile',
-  actions: ['stats'],
+  actions: ['stats', 'open'],
 
   async execute(interaction: ButtonInteraction, parsed, context): Promise<void> {
-    await replyEphemeral(interaction, {
-      content: context.t('profile.stats_hint', { id: paramString(parsed, 0) }),
-    });
+    if (parsed.action === 'open') {
+      // Raccourci des erreurs de niveau : sa propre carte de profil.
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await interaction.editReply(await profileView(context, interaction.user, interaction.user.id));
+      return;
+    }
+    // Les statistiques elles-mêmes, et non plus un renvoi vers `/stats`.
+    const targetId = paramString(parsed, 0) || interaction.user.id;
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const name = interaction.client.users.cache.get(targetId)?.displayName ?? context.player.username;
+    await interaction.editReply(await statsView(context, targetId, name));
   },
 };
 

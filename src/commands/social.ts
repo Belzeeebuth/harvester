@@ -18,6 +18,7 @@ import * as playerRepo from '../repositories/player.repo';
 import { gameError } from '../utils/errors';
 import { formatCoins, formatCompact, formatNumber, progressBar, truncate } from '../utils/format';
 import type { Command, CommandContext } from '../types';
+import { levelUpField } from '../framework/levelup';
 
 /** Commandes sociales : coopératives, classements, visites, parrainage. */
 
@@ -521,6 +522,8 @@ export async function visitFarm(
     embed.setFooter({
       text: context.t('social.visit_reward_footer', { coins: reward.coins, xp: reward.xp }),
     });
+    const levelUp = levelUpField(reward.levelUp, context.t, context.locale);
+    if (levelUp) embed.addFields(levelUp);
   }
 
   await interaction.editReply({
@@ -592,24 +595,23 @@ export async function helpFarmer(
     helped.plotsWatered,
   );
 
-  await interaction.editReply({
-    embeds: [
-      successEmbed(
-        context.t('social.help_title'),
-        [
-          context.t('social.help_watered_line', { count: helped.plotsWatered, name: targetName }),
-          reward.rewarded
-            ? context.t('social.help_reward_line', {
-                coins: formatCoins(reward.coins, false, context.locale),
-                xp: reward.xp,
-                name: targetName,
-              })
-            : context.t('social.help_no_reward_line', { name: targetName }),
-          context.t('social.help_footer_line'),
-        ].join('\n'),
-      ),
-    ],
-  });
+  const helpEmbed = successEmbed(
+    context.t('social.help_title'),
+    [
+      context.t('social.help_watered_line', { count: helped.plotsWatered, name: targetName }),
+      reward.rewarded
+        ? context.t('social.help_reward_line', {
+            coins: formatCoins(reward.coins, false, context.locale),
+            xp: reward.xp,
+            name: targetName,
+          })
+        : context.t('social.help_no_reward_line', { name: targetName }),
+      context.t('social.help_footer_line'),
+    ].join('\n'),
+  );
+  const levelUp = levelUpField(reward.levelUp, context.t, context.locale);
+  if (levelUp) helpEmbed.addFields(levelUp);
+  await interaction.editReply({ embeds: [helpEmbed] });
 }
 
 // ---------------------------------------------------------------------------

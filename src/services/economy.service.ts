@@ -96,6 +96,8 @@ export async function charge(input: PayInput, tx: Executor): Promise<number> {
       {
         context: { required: input.amount, owned, missing },
         i18nKey: currency === 'coins' ? 'common.insufficient_funds' : 'common.insufficient_gems',
+        // Où trouver des pièces : un nouveau joueur ne le sait pas encore.
+        ...(currency === 'coins' ? { hintKey: 'onboarding.earn_hint' } : {}),
         params: { missing },
       },
     );
