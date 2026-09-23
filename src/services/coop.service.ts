@@ -172,7 +172,10 @@ export async function createCoop(
     );
   }
 
-  return withTransaction(async (tx) => {
+  // La fiche est lue APRÈS la validation : `getCoopInfo` passe par une autre
+  // connexion du pool, qui ne voit pas encore la coopérative insérée par la
+  // transaction (« coopérative introuvable », et la création annulée).
+  const coopId = await withTransaction(async (tx) => {
     await lockUserRow(tx, player.id);
     const existing = await socialRepo.getMembership(player.id, tx);
     if (existing) {
@@ -212,15 +215,18 @@ export async function createCoop(
     );
 
     log.info({ coopId: coop.id, name, ownerId: player.id }, 'co-op created');
-    return getCoopInfo(coop.id, player.id);
+    return coop.id;
   });
+  return getCoopInfo(coopId, player.id);
 }
 
 export async function joinCoop(
   player: PlayerContext,
   query: string,
 ): Promise<CoopInfo> {
-  return withTransaction(async (tx) => {
+  // Même raison que `createCoop` : l'adhésion n'est visible d'une autre
+  // connexion qu'une fois la transaction validée.
+  const coopId = await withTransaction(async (tx) => {
     const existing = await socialRepo.getMembership(player.id, tx);
     if (existing) {
       throw gameError('coop_already_member', 'You are already in a co-op.', {
@@ -257,8 +263,9 @@ export async function joinCoop(
       });
     }
 
-    return getCoopInfo(coop.id, player.id);
+    return coop.id;
   });
+  return getCoopInfo(coopId, player.id);
 }
 
 /**

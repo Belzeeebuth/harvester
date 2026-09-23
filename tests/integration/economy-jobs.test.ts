@@ -93,7 +93,10 @@ describe('économie et tâches planifiées', () => {
 
   it('une parcelle fanée sans culture redevient cultivable', async () => {
     await getDb().execute(
-      sql`UPDATE plots SET state = 'withered', pest_type = 'crows' WHERE farm_id = ${player.farmId} AND slot = 2`,
+      // `plots_pest_consistency` : un nuisible a toujours une échéance.
+      sql`UPDATE plots SET state = 'withered', pest_type = 'crows', pest_appeared_at = now(),
+             pest_deadline_at = now() + interval '1 hour'
+           WHERE farm_id = ${player.farmId} AND slot = 2`,
     );
     await giveSeeds(player.id);
     await expect(farmService.plant(player, { cropKey: 'wheat', slot: 2 })).resolves.toBeTruthy();
@@ -121,7 +124,8 @@ describe('économie et tâches planifiées', () => {
 
   it('les intérêts ne sont versés qu’une fois par jour, même job relancé', async () => {
     const rows = await getDb().execute<{ id: string }>(
-      sql`UPDATE bank_accounts SET balance = 100000, last_interest_at = now() - interval '2 days'
+      // Sous la capacité du palier 1 (`bank_accounts_within_capacity`).
+      sql`UPDATE bank_accounts SET balance = 10000, last_interest_at = now() - interval '2 days'
            WHERE user_id = ${player.id} RETURNING id`,
     );
     const accountId = rows.rows[0]?.id;

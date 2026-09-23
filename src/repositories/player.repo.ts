@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { getDb, type Executor } from '../db/client';
 import {
   auctionBids,
@@ -438,22 +438,44 @@ export async function countPrestigeBlockers(
   userId: string,
   executor: Executor = getDb(),
 ): Promise<PrestigeBlockers> {
-  const [row] = await executor
-    .select({
-      listings: sql<number>`(SELECT count(*)::int FROM ${auctionListings}
-        WHERE ${auctionListings.sellerId} = ${userId} AND ${auctionListings.status} = 'active')`,
-      bids: sql<number>`(SELECT count(*)::int FROM ${auctionBids}
-        JOIN ${auctionListings} ON ${auctionListings.id} = ${auctionBids.listingId}
-        WHERE ${auctionBids.bidderId} = ${userId} AND ${auctionBids.refunded} = false
-          AND ${auctionListings.status} = 'active')`,
-      trades: sql<number>`(SELECT count(*)::int FROM ${trades}
-        WHERE ${trades.status} = 'pending'
-          AND (${trades.initiatorId} = ${userId} OR ${trades.partnerId} = ${userId}))`,
-      crafts: sql<number>`(SELECT count(*)::int FROM ${craftingQueue}
-        WHERE ${craftingQueue.userId} = ${userId} AND ${craftingQueue.collected} = false)`,
-    })
-    .from(users)
-    .where(eq(users.id, userId));
+  // Quatre comptes distincts plutôt que des sous-requêtes dans `select` :
+  // Drizzle y rend les colonnes SANS nom de table, et la jointure
+  // enchères/annonces tombait sur un « id » ambigu. Hors de `select`, les
+  // colonnes sont qualifiées.
+  const count = sql<number>`count(*)::int`;
+  const [[listingRow], [bidRow], [tradeRow], [craftRow]] = await Promise.all([
+    executor
+      .select({ n: count })
+      .from(auctionListings)
+      .where(and(eq(auctionListings.sellerId, userId), eq(auctionListings.status, 'active'))),
+    executor
+      .select({ n: count })
+      .from(auctionBids)
+      .innerJoin(auctionListings, eq(auctionListings.id, auctionBids.listingId))
+      .where(
+        and(
+          eq(auctionBids.bidderId, userId),
+          eq(auctionBids.refunded, false),
+          eq(auctionListings.status, 'active'),
+        ),
+      ),
+    executor
+      .select({ n: count })
+      .from(trades)
+      .where(
+        and(eq(trades.status, 'pending'), or(eq(trades.initiatorId, userId), eq(trades.partnerId, userId))),
+      ),
+    executor
+      .select({ n: count })
+      .from(craftingQueue)
+      .where(and(eq(craftingQueue.userId, userId), eq(craftingQueue.collected, false))),
+  ]);
+  const row = {
+    listings: listingRow?.n,
+    bids: bidRow?.n,
+    trades: tradeRow?.n,
+    crafts: craftRow?.n,
+  };
   return {
     listings: Number(row?.listings ?? 0),
     bids: Number(row?.bids ?? 0),
