@@ -8,6 +8,7 @@ import * as systemRepo from '../../src/repositories/system.repo';
 import * as coopService from '../../src/services/coop.service';
 import * as farmService from '../../src/services/farm.service';
 import * as inventoryService from '../../src/services/inventory.service';
+import * as marketService from '../../src/services/market.service';
 import * as tradeService from '../../src/services/trade.service';
 import { doPrestige } from '../../src/services/misc.service';
 import type { PlayerContext } from '../../src/types';
@@ -202,5 +203,50 @@ describe('économie et tâches planifiées', () => {
       sql`SELECT treasury::text AS treasury FROM guilds WHERE id = ${coop.id}`,
     );
     expect(Number(rows.rows[0]?.treasury)).toBe(50000);
+  });
+
+  it('la passe du marché écrit tous les prix et l’historique, sans perdre une vente concurrente', async () => {
+    const balance = getBalance();
+    const before = await economyRepo.listMarketPrices();
+    const wheat = before.find((row) => row.itemKey === 'wheat');
+    expect(wheat).toBeDefined();
+
+    // Une vente de blé tient le verrou de sa ligne quand la passe démarre.
+    // L'ancienne passe lisait les prix HORS transaction : elle partait du
+    // volume d'avant la vente, puis l'écrasait par son volume amorti.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let signalLocked!: () => void;
+    const locked = new Promise<void>((resolve) => (signalLocked = resolve));
+    const sale = withTransaction(async (tx) => {
+      await economyRepo.recordSaleVolume('wheat', 40, tx);
+      signalLocked();
+      await gate;
+    });
+    await locked;
+
+    const now = new Date();
+    const pass = marketService.updateMarket(now);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    release();
+    await sale;
+    const updated = await within(pass, 10_000);
+
+    expect(updated).toBe(before.length);
+    const after = new Map((await economyRepo.listMarketPrices()).map((row) => [row.itemKey, row]));
+    const expectedNext = now.getTime() + balance.market.updateMinutes * 60_000;
+    for (const row of before) {
+      const next = after.get(row.itemKey);
+      expect(next?.previousPrice).toBe(row.currentPrice);
+      expect(next?.nextUpdateAt.getTime()).toBe(expectedNext);
+    }
+    expect(after.get('wheat')?.volumeWindow).toBe(
+      Math.floor((wheat!.volumeWindow + 40) * balance.market.demandDecay),
+    );
+
+    const history = await getDb().execute<{ n: string }>(
+      sql`SELECT count(*)::text AS n FROM market_price_history`,
+    );
+    expect(Number(history.rows[0]?.n)).toBe(before.length);
   });
 });

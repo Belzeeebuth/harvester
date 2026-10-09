@@ -792,20 +792,19 @@ export async function buy(
 export async function updateMarket(now: Date = new Date()): Promise<number> {
   const config = getConfig();
   const balance = getBalance();
-  // Une seule lecture pour tout le marché : la version précédente listait les
-  // prix puis relisait CHAQUE ligne une par une dans la transaction, soit une
-  // centaine d'allers-retours séquentiels par heure pour des données déjà
-  // chargées.
-  const prices = await economyRepo.listMarketPrices();
   const nextUpdateAt = new Date(now.getTime() + balance.market.updateMinutes * 60_000);
-  const rng = dailyRng('market', `${toSqlDate(now)}-${now.getUTCHours()}`);
 
-  let updated = 0;
   // Les prix écrits sont conservés pour l'évaluation des alertes : relire la
   // table après la transaction coûterait une requête de plus pour retrouver
   // exactement ce que l'on vient d'écrire.
-  const updates: MarketUpdate[] = [];
-  await withTransaction(async (tx) => {
+  const updates = await withTransaction(async (tx) => {
+    // Trois requêtes en tout, quel que soit le nombre d'objets : lecture
+    // verrouillée, UPDATE groupé, INSERT groupé de l'historique (voir
+    // `applyMarketUpdates`). Le RNG est créé ici pour qu'une transaction
+    // rejouée reparte du même tirage.
+    const prices = await economyRepo.lockMarketPrices(tx);
+    const rng = dailyRng('market', `${toSqlDate(now)}-${now.getUTCHours()}`);
+    const computed: MarketUpdate[] = [];
     for (const price of prices) {
       const item = config.items.get(price.itemKey);
       if (!item) continue;
@@ -824,12 +823,12 @@ export async function updateMarket(now: Date = new Date()): Promise<number> {
         featured: price.featured,
       };
 
-      const update = updatePrice(state, balance, rng);
-      await economyRepo.applyMarketUpdate(update, nextUpdateAt, tx);
-      updates.push(update);
-      updated += 1;
+      computed.push(updatePrice(state, balance, rng));
     }
+    await economyRepo.applyMarketUpdates(computed, nextUpdateAt, tx);
+    return computed;
   });
+  const updated = updates.length;
 
   log.info({ updated, nextUpdateAt }, 'market updated');
 

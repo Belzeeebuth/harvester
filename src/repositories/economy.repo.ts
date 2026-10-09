@@ -503,39 +503,77 @@ export async function recordSaleVolume(
     .where(eq(marketPrices.itemKey, itemKey));
 }
 
-export async function applyMarketUpdate(
-  update: {
-    itemKey: string;
-    price: number;
-    previousPrice: number;
-    demandIndex: number;
-    trend: number;
-    volumeWindow: number;
-  },
+/**
+ * Lit ET verrouille toutes les lignes de marché pour la passe horaire. Lues
+ * hors transaction, une vente glissée entre la lecture et l'écriture voyait son
+ * volume écrasé par le volume amorti calculé avant elle ; verrouillées ici,
+ * les ventes (`recordSaleVolume`) attendent la fin de la passe, qui ne dure
+ * plus que trois requêtes. `NO KEY UPDATE` comme `lockUserRow` : on ne modifie
+ * jamais `item_key`. L'ordre fixe rend le tirage aléatoire de la passe
+ * indépendant de l'ordre physique des lignes.
+ */
+export async function lockMarketPrices(executor: Executor): Promise<MarketPriceRow[]> {
+  return executor
+    .select()
+    .from(marketPrices)
+    .orderBy(asc(marketPrices.itemKey))
+    .for('no key update');
+}
+
+export interface MarketPriceUpdate {
+  itemKey: string;
+  price: number;
+  previousPrice: number;
+  demandIndex: number;
+  trend: number;
+  volumeWindow: number;
+}
+
+/**
+ * Écrit une passe de marché en DEUX requêtes quel que soit le nombre d'objets :
+ * un UPDATE … FROM (VALUES …) puis un INSERT groupé de l'historique. La version
+ * précédente faisait deux allers-retours par objet (UPDATE puis INSERT, ~70
+ * objets), soit 3 à 8 s de transaction par passe sur l'hôte, pendant lesquelles
+ * toute vente de ces objets attendait le verrou de sa ligne.
+ */
+export async function applyMarketUpdates(
+  updates: readonly MarketPriceUpdate[],
   nextUpdateAt: Date,
   executor: Executor,
 ): Promise<void> {
+  if (updates.length === 0) return;
   const now = new Date();
-  await executor
-    .update(marketPrices)
-    .set({
-      currentPrice: update.price,
-      previousPrice: update.previousPrice,
-      demandIndex: update.demandIndex.toFixed(4),
-      trend: update.trend.toFixed(4),
-      volumeWindow: update.volumeWindow,
-      updatedAt: now,
-      nextUpdateAt,
-    })
-    .where(eq(marketPrices.itemKey, update.itemKey));
+  // Paramètres sans type côté PostgreSQL : le transtypage explicite évite que
+  // VALUES ne les traite comme du texte.
+  const rows = sql.join(
+    updates.map(
+      (update) =>
+        sql`(${update.itemKey}, ${update.price}::bigint, ${update.previousPrice}::bigint, ${update.demandIndex.toFixed(4)}::numeric, ${update.trend.toFixed(4)}::numeric, ${update.volumeWindow}::bigint)`,
+    ),
+    sql`, `,
+  );
+  await executor.execute(sql`
+    UPDATE market_prices AS m
+       SET current_price = v.price,
+           previous_price = v.previous_price,
+           demand_index = v.demand_index,
+           trend = v.trend,
+           volume_window = v.volume_window,
+           updated_at = ${now},
+           next_update_at = ${nextUpdateAt}
+      FROM (VALUES ${rows}) AS v(item_key, price, previous_price, demand_index, trend, volume_window)
+     WHERE m.item_key = v.item_key
+  `);
 
-  await executor.insert(marketPriceHistory).values({
-    itemKey: update.itemKey,
-    price: update.price,
-    demandIndex: update.demandIndex.toFixed(4),
-    volume: update.volumeWindow,
-    recordedAt: now,
-  });
+  await executor.insert(marketPriceHistory).values(
+    updates.map((update) => ({
+      itemKey: update.itemKey,
+      price: update.price,
+      demandIndex: update.demandIndex.toFixed(4),
+      volume: update.volumeWindow,
+      recordedAt: now,
+    })),
+  );
 }
 
 export async function setFeatured(
