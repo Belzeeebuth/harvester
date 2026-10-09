@@ -26,6 +26,13 @@ updates:
         update-types:
           - minor
           - patch
+    # Les types de Node suivent la version de Node qui fait tourner le bot
+    # (22, `engines` de package.json et Dockerfile), pas la dernière parue : un
+    # @types/node 26 laisse passer des API absentes du runtime. On les montera à
+    # la main avec Node ; retirer cette règle à ce moment-là.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     open-pull-requests-limit: 10
     commit-message:
       prefix: "chore(deps)"
