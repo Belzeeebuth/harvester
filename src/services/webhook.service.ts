@@ -1,7 +1,11 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { lookup as dnsCallbackLookup } from 'node:dns';
 import { lookup } from 'node:dns/promises';
-import { Agent } from 'undici';
+// `fetch` vient du MÊME paquet que `Agent`, pas du `fetch` global : celui de
+// Node embarque sa propre copie d'undici (6.x en Node 22), qui appelle le
+// dispatcher avec l'ancienne interface. Un `Agent` undici 8 la refuse
+// (« invalid onRequestStart method ») et chaque livraison échouait.
+import { Agent, fetch } from 'undici';
 import { balance as getBalance } from '../config';
 import { gameError } from '../utils/errors';
 import { moduleLogger } from '../utils/logger';
@@ -127,6 +131,9 @@ async function resolvesToPublicAddress(hostname: string): Promise<boolean> {
  * moindre adresse interne fait échouer la connexion avec une erreur explicite.
  */
 const guardedAgent = new Agent({
+  // undici 8 négocie HTTP/2 par défaut ; vers des adresses fournies par les
+  // joueurs, on s'en tient à HTTP/1.1, seul chemin éprouvé avec ce garde.
+  allowH2: false,
   connect: {
     lookup(hostname, options, callback) {
       dnsCallbackLookup(hostname, { ...options, all: true, verbatim: true }, (error, addresses) => {
@@ -259,7 +266,11 @@ async function deliver(url: string, secret: string, eventType: string, payload: 
     }
     return { ok: true, status: response.status };
   } catch (error) {
-    return { ok: false, error: (error as Error).message };
+    // `fetch` ne dit que « fetch failed » : la vraie raison (refus du garde
+    // DNS, connexion refusée, délai…) est dans `cause`. Elle ne va qu'en base
+    // (`last_error`), jamais au joueur (voir `sendTestPing`).
+    const cause = (error as Error).cause;
+    return { ok: false, error: cause instanceof Error ? cause.message : (error as Error).message };
   } finally {
     clearTimeout(timeout);
   }
