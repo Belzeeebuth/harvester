@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as webhookRepo from '../src/repositories/webhook.repo';
+import { dispatchPending } from '../src/services/webhook.service';
 
 /**
  * Livraison des webhooks — le garde contre le « DNS rebinding », qu'aucun test
@@ -24,7 +26,7 @@ const dns = vi.hoisted(() => ({
 
 vi.mock('node:dns/promises', async (importOriginal) => ({
   ...(await importOriginal<typeof import('node:dns/promises')>()),
-  lookup: vi.fn(async () => [{ address: dns.firstAnswer, family: 4 }]),
+  lookup: vi.fn(() => Promise.resolve([{ address: dns.firstAnswer, family: 4 }])),
 }));
 
 vi.mock('node:dns', async (importOriginal) => ({
@@ -40,14 +42,11 @@ vi.mock('node:dns', async (importOriginal) => ({
 
 vi.mock('../src/repositories/webhook.repo', () => ({
   claimPendingEvents: vi.fn(),
-  recordDeliveryOutcome: vi.fn(async () => ({ consecutiveFailures: 1 })),
+  recordDeliveryOutcome: vi.fn(() => Promise.resolve({ consecutiveFailures: 1 })),
   markEventDelivered: vi.fn(),
   markEventFailed: vi.fn(),
   disableSubscription: vi.fn(),
 }));
-
-const webhookRepo = await import('../src/repositories/webhook.repo');
-const { dispatchPending } = await import('../src/services/webhook.service');
 
 function pendingEvent() {
   return {
