@@ -223,7 +223,7 @@ harvester/
 │   │
 │   ├── jobs/
 │   │   ├── definitions.ts       Les 17 tâches (§ 6.1) : clé, cron UTC, description, run()
-│   │   ├── scheduler.ts         BullMQ (jobs répétables dédupliqués) ou minuteurs ; registre scheduled_tasks ; runJobNow()
+│   │   ├── scheduler.ts         BullMQ (planifications dédupliquées) ou minuteurs ; registre scheduled_tasks ; runJobNow()
 │   │   └── notifications.ts     Worker de MP (4/s) et de rappels en salon, sur chaque shard, réservation claimed_by
 │   │
 │   ├── http/
@@ -557,13 +557,15 @@ estimée depuis le cron), ce que `/admin stats` affiche.
 
 Avec `QUEUES_ENABLED=true` (`src/jobs/scheduler.ts`) :
 
-- chaque tâche est un *repeatable job* BullMQ avec `jobId = clé`, `attempts: 3`,
-  recul exponentiel de 30 s, dans la file `jobs` (préfixe `REDIS_PREFIX`), traitée
-  par un `Worker` de concurrence 2 par process ;
-- **un seul process réenregistre** les tâches répétables : verrou
+- chaque tâche est une planification BullMQ (*job scheduler*, `upsertJobScheduler`)
+  identifiée par sa clé, `attempts: 3`, recul exponentiel de 30 s, dans la file
+  `jobs` (préfixe `REDIS_PREFIX`), traitée par un `Worker` de concurrence 2 par
+  process ;
+- **un seul process réenregistre** les planifications : verrou
   `harvester:scheduler:register` (`SET NX EX 60`, jamais relâché, il expire) ;
-  le gagnant purge les anciens jobs répétables — sinon un cron modifié dans le
-  code laisserait l'ancien programmé indéfiniment — et recrée les 17 ;
+  le gagnant met chaque planification à jour en place (un cron modifié dans le
+  code remplace l'ancien) puis retire celles qui ne correspondent plus à aucune
+  tâche du code ;
 - peu importe combien de *shards* démarrent : BullMQ dédoublonne, la tâche
   s'exécute **une seule fois**.
 

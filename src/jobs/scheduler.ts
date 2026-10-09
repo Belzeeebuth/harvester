@@ -14,9 +14,9 @@ const log = moduleLogger('scheduler');
  * ---------------------------------------------------------------------------
  * ORDONNANCEUR
  * ---------------------------------------------------------------------------
- * BullMQ (Redis) porte l'exécution : jobs répétables par cron, réessais avec
+ * BullMQ (Redis) porte l'exécution : planifications par cron, réessais avec
  * back-off, et surtout DÉDOUBLONNAGE ENTRE PROCESS. Avec plusieurs shards, tous
- * exécutent ce code, mais un job répétable n'est enregistré qu'une fois dans
+ * exécutent ce code, mais une planification n'est enregistrée qu'une fois dans
  * Redis : la mise à jour du marché ne peut donc pas se produire quatre fois.
  *
  * Repli sans Redis (`QUEUES_ENABLED=false`) : un simple `setInterval` par job,
@@ -76,7 +76,7 @@ async function startWithBullMq(): Promise<void> {
   const connection = getQueueConnection();
   queue = new Queue(QUEUE_NAME, { connection, prefix: QUEUE_PREFIX });
 
-  // Un SEUL process réenregistre les tâches répétables.
+  // Un SEUL process réenregistre les planifications.
   //
   // Tous les shards démarrent à peu près en même temps et exécutaient ce bloc
   // en parallèle : la purge de l'un pouvait effacer l'enregistrement qu'un autre
@@ -92,30 +92,43 @@ async function startWithBullMq(): Promise<void> {
   );
 
   if (registrar === 'OK') {
-    // On repart d'une base propre : si un cron a changé dans le code, l'ancien
-    // job répétable resterait sinon programmé indéfiniment.
-    const existing = await queue.getRepeatableJobs();
-    for (const repeatable of existing) {
-      await queue.removeRepeatableByKey(repeatable.key);
-    }
-
+    // Une planification (« job scheduler ») par tâche, identifiée par sa clé :
+    // `upsertJobScheduler` met à jour en place, un cron modifié dans le code
+    // remplace donc l'ancien sans purge préalable ni fenêtre sans planification.
+    // Les jobs répétables (`queue.add` + `repeat`) disparaissent de BullMQ 6.
     for (const definition of jobs) {
-      await queue.add(
+      await queue.upsertJobScheduler(
         definition.key,
-        { key: definition.key },
+        { pattern: definition.cron, tz: 'UTC' },
         {
-          repeat: { pattern: definition.cron, tz: 'UTC' },
-          jobId: definition.key,
-          removeOnComplete: 50,
-          removeOnFail: 100,
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 30_000 },
+          name: definition.key,
+          data: { key: definition.key },
+          opts: {
+            removeOnComplete: 50,
+            removeOnFail: 100,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 30_000 },
+          },
         },
       );
     }
-    log.info({ jobs: jobs.length }, 'tâches répétables enregistrées par ce process');
+
+    // Tout ce qui reste dans l'ensemble `repeat` sans correspondre à une tâche
+    // actuelle est retiré : planification d'une tâche supprimée du code, et
+    // anciens jobs répétables (clé = empreinte des options), que BullMQ 6
+    // ne sait plus gérer. `removeRepeatableByKey` supprime aussi leur prochaine
+    // exécution déjà programmée. À garder tant que la prod tourne en BullMQ 5 :
+    // c'est cette purge qui rend la montée en v6 possible.
+    const known = new Set(jobs.map((definition) => definition.key));
+    let purged = 0;
+    for (const entry of await queue.getRepeatableJobs()) {
+      if (known.has(entry.key)) continue;
+      await queue.removeRepeatableByKey(entry.key);
+      purged += 1;
+    }
+    log.info({ jobs: jobs.length, purged }, 'tâches planifiées enregistrées par ce process');
   } else {
-    log.info('tâches répétables déjà enregistrées par un autre process');
+    log.info('tâches planifiées déjà enregistrées par un autre process');
   }
 
   worker = new Worker(
