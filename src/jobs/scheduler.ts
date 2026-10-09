@@ -113,18 +113,22 @@ async function startWithBullMq(): Promise<void> {
       );
     }
 
-    // Tout ce qui reste dans l'ensemble `repeat` sans correspondre à une tâche
-    // actuelle est retiré : planification d'une tâche supprimée du code, et
-    // anciens jobs répétables (clé = empreinte des options), que BullMQ 6
-    // ne sait plus gérer. `removeRepeatableByKey` supprime aussi leur prochaine
-    // exécution déjà programmée. À garder tant que la prod tourne en BullMQ 5 :
-    // c'est cette purge qui rend la montée en v6 possible.
+    // Une planification qui ne correspond plus à aucune tâche du code (tâche
+    // supprimée ou renommée) est retirée, avec sa prochaine exécution. Les
+    // anciens jobs répétables de BullMQ 5 ont été convertis et purgés avant la
+    // montée en v6 ; s'il en restait, BullMQ 6 lèverait ici. L'échec de ce
+    // ménage ne doit pas empêcher le démarrage : les tâches actuelles sont déjà
+    // planifiées ci-dessus.
     const known = new Set(jobs.map((definition) => definition.key));
     let purged = 0;
-    for (const entry of await queue.getRepeatableJobs()) {
-      if (known.has(entry.key)) continue;
-      await queue.removeRepeatableByKey(entry.key);
-      purged += 1;
+    try {
+      for (const scheduler of await queue.getJobSchedulers()) {
+        if (known.has(scheduler.key)) continue;
+        await queue.removeJobScheduler(scheduler.key);
+        purged += 1;
+      }
+    } catch (error) {
+      log.error({ err: error }, 'ménage des planifications obsolètes en échec');
     }
     log.info({ jobs: jobs.length, purged }, 'tâches planifiées enregistrées par ce process');
   } else {
