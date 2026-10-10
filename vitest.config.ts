@@ -19,6 +19,12 @@ export default defineConfig({
     // `setup-env.ts`. Suite dédiée : `npm run test:integration`.
     exclude: ['**/node_modules/**', 'tests/integration/**'],
     globals: false,
+    // `docker compose build` lance cette suite sur l'hôte de production, qui
+    // fait tourner d'autres services : les tests de rendu (canvas) et ceux qui
+    // importent tout le graphe y passent de 1 à 7 s. Les 5 s par défaut de
+    // vitest faisaient échouer le build pour des dépassements, sans aucune
+    // assertion fausse ; un vrai blocage reste attrapé.
+    testTimeout: 20_000,
     reporters: ['default'],
     coverage: {
       provider: 'v8',
